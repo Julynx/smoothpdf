@@ -1,0 +1,324 @@
+:root {
+  --bg-color: #0f1115;
+  --text-color: #f8fafc;
+  --drag-bar-height: 48px;
+  --accent-color: #3b82f6;
+  --accent-hover: #2563eb;
+  --border-color: rgb(255 255 255 / 6%);
+  --layer-bg: #13151a;
+}
+
+body,
+html {
+  background-color: var(--bg-color);
+  color: var(--text-color);
+  font-family:
+    Inter,
+    -apple-system,
+    BlinkMacSystemFont,
+    "Segoe UI",
+    Roboto,
+    Helvetica,
+    Arial,
+    sans-serif;
+  height: 100vh;
+  margin: 0;
+  overflow: hidden;
+  padding: 0;
+  user-select: none;
+  width: 100vw;
+}
+
+#drag-region {
+  align-items: center;
+  backdrop-filter: blur(16px);
+  background: rgb(15 17 21 / 75%);
+  border-bottom: 1px solid var(--border-color);
+  display: flex;
+  height: var(--drag-bar-height);
+  left: 0;
+  position: absolute;
+  top: 0;
+  width: 100%;
+  z-index: 100;
+}
+
+.header-content {
+  align-items: center;
+  box-sizing: border-box;
+  display: flex;
+  height: 100%;
+  justify-content: space-between;
+  padding: 0 16px 0 24px;
+  width: 100%;
+}
+
+.app-title {
+  align-items: center;
+  -webkit-app-region: drag;
+  color: #94a3b8;
+  display: flex;
+  flex-grow: 1;
+  font-size: 13px;
+  font-weight: 500;
+  gap: 10px;
+  height: 100%;
+  letter-spacing: 0.3px;
+}
+
+.title-icon {
+  color: var(--accent-color);
+  opacity: 0.9;
+}
+
+.primary-btn {
+  align-items: center;
+  -webkit-app-region: no-drag;
+  background-color: var(--accent-color);
+  border: 1px solid rgb(255 255 255 / 10%);
+  border-radius: 6px;
+  box-shadow:
+    0 2px 5px rgb(0 0 0 / 20%),
+    inset 0 1px 0 rgb(255 255 255 / 10%);
+  color: white;
+  cursor: pointer;
+  display: flex;
+  font-family: Inter, sans-serif;
+  font-size: 13px;
+  font-weight: 500;
+  gap: 6px;
+  padding: 6px 14px;
+  transition: all 0.2s ease;
+}
+
+.primary-btn:hover {
+  background-color: var(--accent-hover);
+  box-shadow:
+    0 4px 8px rgb(0 0 0 / 30%),
+    inset 0 1px 0 rgb(255 255 255 / 15%);
+  transform: translateY(-1px);
+}
+
+.primary-btn:active {
+  box-shadow: 0 1px 2px rgb(0 0 0 / 20%);
+  transform: translateY(0);
+}
+
+#pdf-controls {
+  align-items: center;
+  -webkit-app-region: no-drag;
+  display: flex;
+  gap: 12px;
+  left: 50%;
+  position: absolute;
+  top: 50%;
+  transform: translate(-50%, -50%);
+}
+
+#pdf-controls.hidden {
+  display: none;
+}
+
+.control-group {
+  align-items: center;
+  background: rgb(255 255 255 / 4%);
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  display: flex;
+  height: 28px;
+  padding: 2px;
+}
+
+.icon-btn {
+  align-items: center;
+  background: transparent;
+  border: none;
+  border-radius: 4px;
+  color: var(--text-color);
+  cursor: pointer;
+  display: flex;
+  height: 24px;
+  justify-content: center;
+  opacity: 0.7;
+  transition: all 0.2s;
+  width: 24px;
+}
+
+.icon-btn:hover {
+  background: rgb(255 255 255 / 10%);
+  opacity: 1;
+}
+
+.icon-btn:disabled {
+  background: transparent;
+  cursor: default;
+  opacity: 0.3;
+}
+
+#close-btn:hover {
+  background: rgb(239 68 68 / 20%);
+  color: #f87171;
+  opacity: 1;
+}
+
+#zoom-level-text {
+  border-radius: 4px;
+  color: rgb(255 255 255 / 80%);
+  cursor: pointer;
+  font-size: 12px;
+  min-width: 48px;
+  padding: 4px;
+  text-align: center;
+  transition: background-color 0.2s;
+  user-select: none;
+}
+
+#zoom-level-text:hover {
+  background: rgb(255 255 255 / 10%);
+}
+
+#page-input {
+  background: transparent;
+  border: none;
+  border-radius: 4px;
+  color: var(--text-color);
+  font-family: inherit;
+  font-size: 13px;
+  outline: none;
+  padding: 0 4px;
+  text-align: right;
+  width: 32px;
+}
+
+#page-input:focus {
+  background: rgb(255 255 255 / 10%);
+}
+
+#page-count-text {
+  color: rgb(255 255 255 / 50%);
+  font-size: 13px;
+  padding-right: 8px;
+  user-select: none;
+}
+
+.control-divider {
+  background: var(--border-color);
+  height: 16px;
+  width: 1px;
+}
+
+#message-overlay {
+  align-items: center;
+  background: radial-gradient(
+    circle at center,
+    rgb(30 34 42 / 50%) 0%,
+    rgb(15 17 21 / 100%) 100%
+  );
+  display: flex;
+  height: 100%;
+  justify-content: center;
+  left: 0;
+  position: absolute;
+  top: 0;
+  transition: opacity 0.4s ease;
+  width: 100%;
+  z-index: 50;
+}
+
+#welcome-screen {
+  align-items: center;
+  backdrop-filter: blur(12px);
+  background: rgb(255 255 255 / 2%);
+  border: 1px solid var(--border-color);
+  border-radius: 16px;
+  box-shadow: 0 16px 40px rgb(0 0 0 / 20%);
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  padding: 48px 64px;
+}
+
+#welcome-icon {
+  color: var(--accent-color);
+  margin-bottom: 8px;
+  opacity: 0.8;
+}
+
+#message-text {
+  color: #94a3b8;
+  font-size: 15px;
+  font-weight: 400;
+  text-align: center;
+}
+
+.large-btn {
+  border-radius: 8px;
+  font-size: 14px;
+  margin-top: 8px;
+  padding: 10px 24px;
+}
+
+.hidden {
+  opacity: 0;
+  pointer-events: none;
+}
+
+#container {
+  height: 100%;
+  position: relative;
+  transition: opacity 0.4s ease;
+  width: 100%;
+}
+
+.pdf-layer {
+  align-items: center;
+  background-color: var(--layer-bg);
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  left: 0;
+  overflow: hidden auto;
+  padding-bottom: 24px;
+  padding-top: calc(var(--drag-bar-height) + 16px);
+  position: absolute;
+  top: 0;
+  transition: opacity 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+  width: 100%;
+}
+
+.is-front {
+  z-index: 2;
+}
+
+.is-back {
+  z-index: 1;
+}
+
+.pdf-layer::-webkit-scrollbar {
+  width: 10px;
+}
+
+.pdf-layer::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.pdf-layer::-webkit-scrollbar-thumb {
+  background: rgb(255 255 255 / 15%);
+  border: 2px solid var(--layer-bg);
+  border-radius: 5px;
+}
+
+.pdf-layer::-webkit-scrollbar-thumb:hover {
+  background: rgb(255 255 255 / 25%);
+}
+
+canvas {
+  background-color: white; /* Give canvas a white backdrop in case PDF relies on it */
+  border-radius: 6px;
+  box-shadow:
+    0 12px 24px -8px rgb(0 0 0 / 60%),
+    0 4px 8px -4px rgb(0 0 0 / 40%);
+  margin-bottom: 24px;
+  max-width: 90%;
+}
