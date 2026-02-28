@@ -36,8 +36,14 @@ npm start
 To package the application into a standalone executable (`.exe` for Windows), run the newly configured build script:
 
 ```bash
-# Build the NSIS Installer and the Portable exe
+# Build both the NSIS Installer and the Portable exe
 npm run build
+```
+
+To build just the installer:
+
+```bash
+npm run build:installer
 ```
 
 Or just build a portable `.exe` (does not require installation):

@@ -6,6 +6,7 @@
   "scripts": {
     "start": "electron .",
     "build": "electron-builder build --win",
+    "build:installer": "electron-builder build --win nsis",
     "build:portable": "electron-builder build --win portable",
     "lint": "eslint . && stylelint **/*.css",
     "lint:fix": "eslint . --fix && stylelint **/*.css --fix"
@@ -15,6 +16,13 @@
     "productName": "Smooth PDF",
     "directories": {
       "output": "dist"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "deleteAppDataOnUninstall": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true
     },
     "files": [
       "**/*",
@@ -27,7 +35,9 @@
       "!ls_out.txt",
       "!build_error.log",
       "!.stylelintrc.json",
-      "!eslint.config.mjs"
+      "!eslint.config.mjs",
+      "!.vscode/**/*",
+      "!.github/**/*"
     ],
     "win": {
       "target": [

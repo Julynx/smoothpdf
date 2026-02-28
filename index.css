@@ -155,26 +155,36 @@ html {
   opacity: 0.3;
 }
 
+#close-btn {
+  margin: 6px 2px;
+}
+
 #close-btn:hover {
   background: rgb(239 68 68 / 20%);
   color: #f87171;
   opacity: 1;
 }
 
-#zoom-level-text {
+.zoom-dropdown {
+  background: transparent;
+  border: none;
   border-radius: 4px;
-  color: rgb(255 255 255 / 80%);
+  color: var(--text-color);
   cursor: pointer;
-  font-size: 12px;
-  min-width: 48px;
-  padding: 4px;
-  text-align: center;
-  transition: background-color 0.2s;
-  user-select: none;
+  font-family: inherit;
+  font-size: 13px;
+  outline: none;
+  padding: 4px 8px;
 }
 
-#zoom-level-text:hover {
+.zoom-dropdown:hover,
+.zoom-dropdown:focus {
   background: rgb(255 255 255 / 10%);
+}
+
+.zoom-dropdown option {
+  background: var(--layer-bg);
+  color: var(--text-color);
 }
 
 #page-input {
@@ -271,14 +281,13 @@ html {
 }
 
 .pdf-layer {
-  align-items: center;
   background-color: var(--layer-bg);
   box-sizing: border-box;
   display: flex;
   flex-direction: column;
   height: 100%;
   left: 0;
-  overflow: hidden auto;
+  overflow: auto;
   padding-bottom: 24px;
   padding-top: calc(var(--drag-bar-height) + 16px);
   position: absolute;
@@ -320,5 +329,6 @@ canvas {
     0 12px 24px -8px rgb(0 0 0 / 60%),
     0 4px 8px -4px rgb(0 0 0 / 40%);
   margin-bottom: 24px;
-  max-width: 90%;
+  margin-left: auto;
+  margin-right: auto;
 }
