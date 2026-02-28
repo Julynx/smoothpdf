@@ -8,6 +8,7 @@ A minimal, modern, and high-performance Electron-based PDF viewer designed for s
 - **Scroll Sync:** Retains your exact scroll position across reloads.
 - **Flicker-Free Crossfade:** Seamlessly renders the new version underneath the current one, then elegantly fades out the old layer.
 - **Modern Minimal UX:** Dark mode, custom scrollbars, and a clean, frameless-styled window.
+- **System Integration:** Registers as a PDF viewer during installation, allowing you to open PDFs directly via "Open with...".
 
 ## Installation
 

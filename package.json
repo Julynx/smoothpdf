@@ -14,6 +14,15 @@
   "build": {
     "appId": "com.smoothpdf.viewer",
     "productName": "Smooth PDF",
+    "icon": "public/icon.png",
+    "fileAssociations": [
+      {
+        "ext": "pdf",
+        "name": "PDF Document",
+        "description": "Portable Document Format",
+        "role": "Viewer"
+      }
+    ],
     "directories": {
       "output": "dist"
     },
