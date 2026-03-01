@@ -10,6 +10,7 @@ const pdfControls = document.getElementById('pdf-controls');
 const zoomSelect = document.getElementById('zoom-select');
 const pageInput = document.getElementById('page-input');
 const pageCountText = document.getElementById('page-count-text');
+const printBtn = document.getElementById('print-btn');
 const closeBtn = document.getElementById('close-btn');
 const appTitleText = document.getElementById('app-title-text');
 
@@ -474,6 +475,14 @@ function jumpToPage(inputVal) {
 closeBtn.addEventListener('click', async () => {
     await closePdf();
 });
+
+if (printBtn) {
+    printBtn.addEventListener('click', () => {
+        if (currentPdfPath) {
+            window.print();
+        }
+    });
+}
 
 async function closePdf() {
     try {
