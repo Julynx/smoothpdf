@@ -49,8 +49,11 @@ function createWindow() {
  * Sets up the file watcher for the target PDF.
  * @param {string} filePath - Absolute path to the PDF to watch.
  */
-function setupWatcher(filePath) {
-    if (watcher) watcher.close();
+async function setupWatcher(filePath) {
+    if (watcher) {
+        log('Closing previous watcher');
+        await watcher.close();
+    }
 
     const chokidar = require('chokidar');
     log(`Setting up watcher for ${filePath}`);
@@ -76,7 +79,16 @@ app.whenReady().then(() => {
     protocol.handle('safe-file', (request) => {
         const rawPath = request.url.slice('safe-file://'.length);
         const decodedPath = decodeURIComponent(rawPath);
-        return net.fetch(pathToFileURL(decodedPath).href);
+        
+        const absoluteRequestedPath = path.resolve(decodedPath);
+        const absoluteTargetPath = targetPdf ? path.resolve(targetPdf) : null;
+        
+        if (!absoluteTargetPath || absoluteRequestedPath !== absoluteTargetPath) {
+            logError(`Unauthorized file access attempt: ${absoluteRequestedPath}`);
+            return new Response('Unauthorized access', { status: 403 });
+        }
+        
+        return net.fetch(pathToFileURL(absoluteRequestedPath).href);
     });
 
     const args = process.argv.slice(app.isPackaged ? 1 : 2);
@@ -126,10 +138,10 @@ ipcMain.handle('selectFile', async () => {
     return targetPdf;
 });
 
-ipcMain.handle('closeFile', () => {
+ipcMain.handle('closeFile', async () => {
     log('Closing file');
     if (watcher) {
-        watcher.close();
+        await watcher.close();
         watcher = null;
     }
     targetPdf = null;
