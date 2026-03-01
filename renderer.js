@@ -30,7 +30,7 @@ let currentPdfPath = null;
 let isRendering = false;
 let pendingRender = false;
 
-let currentZoomMode = 'fit-width';
+let currentZoomMode = '1.25';
 let totalPages = 0;
 let currentPageNumber = 1;
 let pageObserver = null;
