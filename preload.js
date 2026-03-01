@@ -9,4 +9,5 @@ contextBridge.exposeInMainWorld('api', {
         ipcRenderer.on('fileUpdated', (_event, filePath) => callback(filePath)),
     selectFile: () => ipcRenderer.invoke('selectFile'),
     closeFile: () => ipcRenderer.invoke('closeFile'),
+    showContextMenu: () => ipcRenderer.send('show-context-menu'),
 });

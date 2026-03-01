@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, dialog, protocol, net } = require('electron');
+const { app, BrowserWindow, ipcMain, dialog, protocol, net, Menu, MenuItem } = require('electron');
 const path = require('path');
 const { pathToFileURL } = require('url');
 
@@ -39,6 +39,10 @@ function createWindow() {
 
     mainWindow.loadFile('index.html');
     mainWindow.removeMenu();
+
+    mainWindow.webContents.on('console-message', (event, level, message, line, sourceId) => {
+        log(`Renderer Console [${level}]: ${message} (Line ${line} in ${sourceId})`);
+    });
 }
 
 /**
@@ -130,4 +134,13 @@ ipcMain.handle('closeFile', () => {
     }
     targetPdf = null;
     return true;
+});
+
+ipcMain.on('show-context-menu', (event) => {
+    if (!mainWindow) return;
+    
+    const menu = new Menu();
+    menu.append(new MenuItem({ role: 'copy' }));
+    
+    menu.popup({ window: BrowserWindow.fromWebContents(event.sender) });
 });

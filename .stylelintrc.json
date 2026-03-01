@@ -4,5 +4,8 @@
   "rules": {
     "order/properties-alphabetical-order": true,
     "selector-class-pattern": null
-  }
+  },
+  "ignoreFiles": [
+    "public/pdf_viewer.css"
+  ]
 }

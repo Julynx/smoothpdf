@@ -103,28 +103,132 @@ async function renderDocumentToLayer(
 
         const viewport = page.getViewport({ scale: finalScale });
 
-        const canvas = document.createElement('canvas');
-        canvas.dataset.pageNumber = pageNum;
+        const pageContainer = document.createElement('div');
+        pageContainer.className = 'page-container';
+        pageContainer.dataset.pageNumber = pageNum;
+        pageContainer.style.width = Math.floor(viewport.width) + 'px';
+        pageContainer.style.height = Math.floor(viewport.height) + 'px';
+
         if (pageNum === pageToAnchor) {
-            targetAnchorCanvas = canvas;
+            targetAnchorCanvas = pageContainer;
         }
 
+        const canvas = document.createElement('canvas');
         const context = canvas.getContext('2d');
-
         const outputScale = window.devicePixelRatio || 1;
 
         canvas.width = Math.floor(viewport.width * outputScale);
         canvas.height = Math.floor(viewport.height * outputScale);
-        canvas.style.width = Math.floor(viewport.width) + 'px';
-        canvas.style.height = Math.floor(viewport.height) + 'px';
+        canvas.style.width = '100%';
+        canvas.style.height = '100%';
 
         const transform =
       outputScale !== 1 ? [outputScale, 0, 0, outputScale, 0, 0] : null;
 
-        targetLayer.appendChild(canvas);
+        pageContainer.appendChild(canvas);
+        targetLayer.appendChild(pageContainer);
 
         const renderContext = { canvasContext: context, transform, viewport };
         await page.render(renderContext).promise;
+
+        const textLayerDiv = document.createElement('div');
+        textLayerDiv.className = 'textLayer';
+        textLayerDiv.style.setProperty('--scale-factor', viewport.scale);
+        pageContainer.appendChild(textLayerDiv);
+
+        const textContent = await page.getTextContent();
+        const textLayer = new pdfjsLib.TextLayer({
+            textContentSource: textContent,
+            container: textLayerDiv,
+            viewport: viewport
+        });
+        await textLayer.render();
+
+        const annotationLayerDiv = document.createElement('div');
+        annotationLayerDiv.className = 'annotationLayer';
+        annotationLayerDiv.style.setProperty('--scale-factor', viewport.scale);
+        pageContainer.appendChild(annotationLayerDiv);
+
+        const annotations = await page.getAnnotations();
+        const annotationLayer = new pdfjsLib.AnnotationLayer({
+            div: annotationLayerDiv,
+            accessibilityManager: null,
+            annotationCanvasMap: null,
+            annotationEditorUIManager: null,
+            page: page,
+            viewport: viewport,
+            structTreeLayer: null
+        });
+
+        await annotationLayer.render({
+            viewport: viewport,
+            div: annotationLayerDiv,
+            annotations: annotations,
+            page: page,
+            linkService: {
+                getDestinationHash: (dest) => dest,
+                getAnchorUrl: (href) => href || '',
+                setDocument: () => {},
+                executeNamedAction: () => {},
+                cachePageRef: () => {},
+                isPageVisible: () => true,
+                isPageCached: () => true,
+                addLinkAttributes: (link, url) => { link.href = url; },
+                goToDestination: (dest) => {
+                    if (typeof dest === 'string') {
+                        pdfDocument.getDestination(dest).then(explicitDest => {
+                            if (Array.isArray(explicitDest) && explicitDest.length > 0) {
+                                const ref = explicitDest[0];
+                                pdfDocument.getPageIndex(ref).then(pageIndex => {
+                                    jumpToPage(pageIndex + 1);
+                                }).catch(() => {});
+                            }
+                        });
+                    } else if (Array.isArray(dest) && dest.length > 0) {
+                        const ref = dest[0];
+                        pdfDocument.getPageIndex(ref).then(pageIndex => {
+                            jumpToPage(pageIndex + 1);
+                        }).catch(() => {});
+                    }
+                }
+            },
+            downloadManager: null,
+            renderForms: false
+        });
+
+        annotationLayerDiv.addEventListener('click', function(event) {
+            const target = event.target.closest('a');
+            if (!target) return;
+            
+            const href = target.getAttribute('href');
+            if (href && href.startsWith('#')) {
+                event.preventDefault();
+
+                let targetPageNum;
+
+                const explicitPageMatch = href.match(/page=(\d+)/);
+                if (explicitPageMatch) {
+                    targetPageNum = parseInt(explicitPageMatch[1], 10);
+                } else {
+                    try {
+                        let parsed = JSON.parse(decodeURIComponent(href.substring(1)));
+                        if (Array.isArray(parsed) && parsed.length > 0) {
+                            const ref = parsed[0];
+                            pdfDocument.getPageIndex(ref).then((pageIndex) => {
+                                jumpToPage(pageIndex + 1);
+                            }).catch(() => {});
+                            return; 
+                        }
+                    } catch {
+                        // ignore parsing error
+                    }
+                }
+
+                if (targetPageNum) {
+                    jumpToPage(targetPageNum);
+                }
+            }
+        });
     }
 
     return targetAnchorCanvas;
@@ -156,8 +260,8 @@ function setupPageObserver(layerElement) {
         },
     );
 
-    const canvases = layerElement.querySelectorAll('canvas');
-    canvases.forEach((c) => pageObserver.observe(c));
+    const containers = layerElement.querySelectorAll('.page-container');
+    containers.forEach((c) => pageObserver.observe(c));
 }
 
 function updateControlsUI() {
@@ -348,12 +452,12 @@ function jumpToPage(inputVal) {
 
     if (targetPage !== currentPageNumber) {
         currentPageNumber = targetPage;
-        const targetCanvas = currentFront.querySelector(
-            `canvas[data-page-number="${targetPage}"]`,
+        const targetContainer = currentFront.querySelector(
+            `.page-container[data-page-number="${targetPage}"]`,
         );
-        if (targetCanvas) {
+        if (targetContainer) {
             ignoreScrollEvents = true;
-            let targetScrollTop = targetCanvas.offsetTop - 64;
+            let targetScrollTop = targetContainer.offsetTop - 64;
             if (targetPage === 1) targetScrollTop = 0;
             
             currentFront.scrollTo({
@@ -411,6 +515,14 @@ openFileBtn.addEventListener('click', async () => {
         }
     } catch (err) {
         console.error('Error opening file:', err);
+    }
+});
+
+window.addEventListener('contextmenu', (e) => {
+    const selection = window.getSelection();
+    if (selection && selection.toString().trim() !== '') {
+        e.preventDefault();
+        window.api.showContextMenu();
     }
 });
 

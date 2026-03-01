@@ -322,8 +322,7 @@ html {
   background: rgb(255 255 255 / 25%);
 }
 
-canvas {
-  background-color: white; /* Give canvas a white backdrop in case PDF relies on it */
+.page-container {
   border-radius: 6px;
   box-shadow:
     0 12px 24px -8px rgb(0 0 0 / 60%),
@@ -331,4 +330,21 @@ canvas {
   margin-bottom: 24px;
   margin-left: auto;
   margin-right: auto;
+  position: relative;
+}
+
+.textLayer {
+  user-select: text;
+}
+
+.annotationLayer {
+  left: 0;
+  position: absolute;
+  top: 0;
+}
+
+canvas {
+  background-color: white; /* Give canvas a white backdrop in case PDF relies on it */
+  border-radius: inherit;
+  display: block;
 }
