@@ -30,6 +30,7 @@ html {
 }
 
 #drag-region {
+  -webkit-app-region: drag;
   align-items: center;
   backdrop-filter: blur(16px);
   background: rgb(15 17 21 / 75%);
