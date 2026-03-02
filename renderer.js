@@ -40,6 +40,18 @@ async function performCrossfadeUpdate(
 
     const currentScrollPos = state.currentFront.scrollTop;
 
+    let relativeOffset = 0;
+    if (anchorPage) {
+      const oldAnchorCanvas = state.currentFront.querySelector(
+        `.page-container[data-page-number="${anchorPage}"]`,
+      );
+      if (oldAnchorCanvas) {
+        const distanceIntoPage =
+          currentScrollPos + 64 - oldAnchorCanvas.offsetTop;
+        relativeOffset = distanceIntoPage / oldAnchorCanvas.offsetHeight;
+      }
+    }
+
     const anchorCanvas = await renderDocumentToLayer(
       doc,
       state.currentBack,
@@ -47,11 +59,11 @@ async function performCrossfadeUpdate(
     );
 
     if (anchorCanvas) {
-      if (anchorPage === 1) {
-        state.currentBack.scrollTop = 0;
-      } else {
-        state.currentBack.scrollTop = anchorCanvas.offsetTop - 64;
-      }
+      const newScrollTop =
+        anchorCanvas.offsetTop -
+        64 +
+        relativeOffset * anchorCanvas.offsetHeight;
+      state.currentBack.scrollTop = Math.max(0, newScrollTop);
     } else {
       state.currentBack.scrollTop = currentScrollPos;
     }

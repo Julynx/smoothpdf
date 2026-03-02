@@ -1,11 +1,13 @@
 import js from '@eslint/js';
 import globals from 'globals';
+import eslintConfigPrettier from 'eslint-config-prettier';
 
 export default [
     {
         ignores: ['node_modules/**', 'dist/**', 'build/**', 'public/**', 'eslint.config.mjs'],
     },
     js.configs.recommended,
+    eslintConfigPrettier,
     {
         files: ['**/*.js', '**/*.mjs'],
         languageOptions: {
@@ -17,10 +19,6 @@ export default [
             },
         },
         rules: {
-            'indent': ['error', 4],
-            'linebreak-style': ['error', 'windows'],
-            'quotes': ['error', 'single'],
-            'semi': ['error', 'always'],
             'no-unused-vars': 'warn',
         },
     },

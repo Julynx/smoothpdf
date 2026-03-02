@@ -67,6 +67,7 @@
     "electron": "^40.6.0",
     "electron-builder": "^24.13.3",
     "eslint": "^9.21.0",
+    "eslint-config-prettier": "^10.1.8",
     "eslint-plugin-electron": "^7.0.0",
     "eslint-plugin-security": "^4.0.0",
     "eslint-plugin-sonarjs": "^4.0.0",
