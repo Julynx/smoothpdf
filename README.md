@@ -4,6 +4,8 @@ _A modern PDF viewer designed for live preview workflows, with smooth animations
 
 [Download Windows Installer](https://github.com/Julynx/smoothpdf/releases/latest)
 
+![Video demonstration](readme_assets/readme_video.mp4)
+
 ## Why SmoothPDF?
 
 I am yet to find a PDF viewer that doesn’t flicker (or leak memory and crash) whenever the open PDF file changes on disk.
