@@ -11,7 +11,7 @@ export async function loadPdfDocument(filePath) {
   return await loadingTask.promise;
 }
 
-export function jumpToPage(inputVal) {
+export function jumpToPage(inputVal, destArray = null) {
   if (!state.currentPdfPath) return;
   const elements = getUIElements();
 
@@ -22,34 +22,77 @@ export function jumpToPage(inputVal) {
   }
 
   targetPage = Math.max(1, Math.min(targetPage, state.totalPages));
-  if (elements.pageInput) elements.pageInput.value = targetPage;
 
+  // Allow jumping to different offsets within the same page
+  if (elements.pageInput) elements.pageInput.value = targetPage;
   if (targetPage !== state.currentPageNumber) {
     updateState({ currentPageNumber: targetPage });
+  }
 
-    const targetContainer = state.currentFront.querySelector(
-      `.page-container[data-page-number="${targetPage}"]`,
-    );
+  const targetContainer = state.currentFront.querySelector(
+    `.page-container[data-page-number="${targetPage}"]`,
+  );
 
-    if (targetContainer) {
-      updateState({ ignoreScrollEvents: true });
+  if (targetContainer) {
+    updateState({ ignoreScrollEvents: true });
 
-      let targetScrollTop = targetContainer.offsetTop - 64;
-      if (targetPage === 1) targetScrollTop = 0;
+    let targetScrollTop = targetContainer.offsetTop - 64;
 
-      state.currentFront.scrollTo({
-        top: targetScrollTop,
-        behavior: "smooth",
-      });
+    // Check if we have an explicit destination array with a "top" offset (Y-coordinate)
+    if (destArray && Array.isArray(destArray) && destArray.length >= 4) {
+      const destType = destArray[1];
+      if (destType && destType.name === "XYZ") {
+        const unscaledY = destArray[3];
+        if (typeof unscaledY === "number") {
+          // The Y-coordinate is usually from the bottom left of the PDF page, in unscaled points.
+          // pdf.js annotation layer provides `style.getPropertyValue('--scale-factor')` inside the container.
+          const annotationLayer =
+            targetContainer.querySelector(".annotationLayer");
+          let scaleFactor = 1.0;
+          if (annotationLayer) {
+            const scaleStr =
+              annotationLayer.style.getPropertyValue("--scale-factor");
+            if (scaleStr) {
+              scaleFactor = parseFloat(scaleStr);
+            }
+          }
 
-      state.currentFront.addEventListener(
-        "scrollend",
-        () => {
-          updateState({ ignoreScrollEvents: false });
-        },
-        { once: true },
-      );
+          // We need page height in unscaled points to compute offset from top
+          const pixelHeight = targetContainer.clientHeight;
+          const unscaledHeight = pixelHeight / scaleFactor;
+
+          let yOffsetPoint;
+          if (unscaledY > unscaledHeight) {
+            // Sometimes it might already be from the top depending on PDF origin? Usually it's from bottom.
+            yOffsetPoint = 0; // fallback to top if out of bounds
+          } else {
+            yOffsetPoint = unscaledHeight - unscaledY;
+          }
+
+          const yOffsetPx = yOffsetPoint * scaleFactor;
+          targetScrollTop = targetContainer.offsetTop + yOffsetPx - 64;
+
+          // Ensure we don't scroll past the bottom of the page
+          targetScrollTop = Math.min(
+            targetScrollTop,
+            targetContainer.offsetTop + pixelHeight - 64,
+          );
+        }
+      }
     }
+
+    if (
+      targetPage === 1 &&
+      (!destArray ||
+        Math.abs(targetScrollTop - targetContainer.offsetTop + 64) < 10)
+    ) {
+      targetScrollTop = 0;
+    }
+
+    state.currentFront.scrollTo({
+      top: targetScrollTop,
+      behavior: "smooth",
+    });
   }
 }
 
@@ -166,7 +209,7 @@ export async function renderDocumentToLayer(
                     pdfDocument
                       .getPageIndex(ref)
                       .then((pageIndex) => {
-                        jumpToPage(pageIndex + 1);
+                        jumpToPage(pageIndex + 1, explicitDest);
                       })
                       .catch(() => {});
                   }
@@ -176,7 +219,7 @@ export async function renderDocumentToLayer(
                 pdfDocument
                   .getPageIndex(ref)
                   .then((pageIndex) => {
-                    jumpToPage(pageIndex + 1);
+                    jumpToPage(pageIndex + 1, dest);
                   })
                   .catch(() => {});
               }
@@ -207,7 +250,7 @@ export async function renderDocumentToLayer(
                   pdfDocument
                     .getPageIndex(ref)
                     .then((pageIndex) => {
-                      jumpToPage(pageIndex + 1);
+                      jumpToPage(pageIndex + 1, parsed);
                     })
                     .catch(() => {});
                   return;

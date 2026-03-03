@@ -24,9 +24,9 @@ export function updateWindowTitle(filePath) {
   if (!elements.appTitleText) return;
   if (filePath) {
     const fileName = filePath.split(/[/\\]/).pop();
-    elements.appTitleText.textContent = `Smooth PDF - ${fileName}`;
+    elements.appTitleText.textContent = `SmoothPDF - ${fileName}`;
   } else {
-    elements.appTitleText.textContent = "Smooth PDF";
+    elements.appTitleText.textContent = "SmoothPDF";
   }
 }
 

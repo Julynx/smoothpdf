@@ -45,7 +45,7 @@
              C 10.745 280 0 269.255 0 256 
              Z" fill="url(#docGrad)" />
 
-    <!-- A smooth S curve representing 'Smooth PDF' -->
+    <!-- A smooth S curve representing 'SmoothPDF' -->
     <path d="M 170 90 
              C 170 40, 70 40, 70 90 
              C 70 140, 170 140, 170 190 

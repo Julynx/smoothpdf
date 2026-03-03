@@ -7,6 +7,7 @@ const {
   net,
   Menu,
   MenuItem,
+  shell,
 } = require("electron");
 const path = require("path");
 const { pathToFileURL } = require("url");
@@ -57,6 +58,30 @@ function createWindow() {
       );
     },
   );
+
+  // Handle external links
+  mainWindow.webContents.setWindowOpenHandler(({ url }) => {
+    if (
+      url.startsWith("http://") ||
+      url.startsWith("https://") ||
+      url.startsWith("mailto:")
+    ) {
+      shell.openExternal(url);
+      return { action: "deny" };
+    }
+    return { action: "allow" };
+  });
+
+  mainWindow.webContents.on("will-navigate", (event, url) => {
+    if (
+      url.startsWith("http://") ||
+      url.startsWith("https://") ||
+      url.startsWith("mailto:")
+    ) {
+      event.preventDefault();
+      shell.openExternal(url);
+    }
+  });
 }
 
 /**

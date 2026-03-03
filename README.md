@@ -1,62 +1,34 @@
-# Smooth PDF
+# SmoothPDF
 
-A minimal, modern, and high-performance Electron-based PDF viewer designed for seamless document auto-reloading.
+_A modern PDF viewer designed for live preview workflows, with smooth animations instead of flickering._
 
-## Features
+[Download Windows Installer](https://github.com/Julynx/smoothpdf/releases/latest)
 
-- **Live Reload:** Automatically watches the target PDF for changes.
-- **Scroll Sync:** Retains your exact scroll position across reloads.
-- **Flicker-Free Crossfade:** Seamlessly renders the new version underneath the current one, then elegantly fades out the old layer.
-- **Modern Minimal UX:** Dark mode, custom scrollbars, and a clean, frameless-styled window.
-- **System Integration:** Registers as a PDF viewer during installation, allowing you to open PDFs directly via "Open with...".
+## Why SmoothPDF?
 
-## Installation
+I am yet to find a PDF viewer that doesn’t flicker (or leak memory and crash) whenever the open PDF file changes on disk.
 
-1. Ensure you have Node.js and `npm` installed.
-2. Clone the repository or navigate to the directory.
-3. Install dependencies:
+Most PDF viewers do not support live reloading, making them essentially unusable for such workflows. Opening a PDF with Chrome, for example, requires reloading the page to update the preview whenever the file changes.
 
-   ```bash
-   npm install
-   ```
+Other PDF viewers, such as MuPDF, while excellent in most aspects, require programs to explicitly send a signal to the window telling it to reload its contents, instead of dynamically watching the file on disk for changes.
 
-## Usage
+Finally, I found Sioyek to leak memory and frequently crash after the document changes on disk, especially with PDFs that contain a lot of images.
 
-Run the application:
+Every other PDF viewer I’ve tried that is not mentioned here either does not update in real time, or does, but flickers briefly, which I find extremely distracting and painful to the eyes.
 
-```bash
-npm start
-```
+SmoothPDF was made with the help of Antigravity in a couple of evenings; it is not technically better in any way than any of the projects mentioned above. It does, however, implement a smart, yet simple strategy to update PDF files in real time without flickering, one that I haven’t seen anywhere else.
 
-1. The viewer will launch to a clean interface.
-2. Click the **Open PDF** button in the top right to select a PDF via your native file browser.
-3. The selected document will load, and auto-reload logic will automatically apply to any external modifications made to that file.
+## How SmoothPDF handles live updates
 
-## Building for Production
+When the open PDF changes on disk, it is rendered behind the current (outdated) view. Then, the current view is smoothly faded out until only the new view is displayed.
 
-To package the application into a standalone executable (`.exe` for Windows), run the newly configured build script:
+This makes flickering impossible, as only the modified elements appear to change, and they do so with a faded transition.
 
-```bash
-# Build both the NSIS Installer and the Portable exe
-npm run build
-```
+## Feature set
 
-To build just the installer:
+SmoothPDF is intentionally simple. It supports:
 
-```bash
-npm run build:installer
-```
-
-Or just build a portable `.exe` (does not require installation):
-
-```bash
-npm run build:portable
-```
-
-The output will be placed inside the `dist/` folder in the project root.
-
-## Technology Stack
-
-- **Electron:** Core framework.
-- **PDF.js:** Rendering engine for accurate document display.
-- **Chokidar:** Robust filesystem watcher for instant updates.
+- Different zoom levels, including “fit to width” and “fit to height”.
+- Selectable text and section links.
+- Travel to page with number.
+- Printing documents (opens system dialogue).
