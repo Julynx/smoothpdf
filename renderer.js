@@ -47,7 +47,7 @@ async function performCrossfadeUpdate(
       );
       if (oldAnchorCanvas) {
         const distanceIntoPage =
-          currentScrollPos + 64 - oldAnchorCanvas.offsetTop;
+          currentScrollPos + 16 - oldAnchorCanvas.offsetTop;
         relativeOffset = distanceIntoPage / oldAnchorCanvas.offsetHeight;
       }
     }
@@ -61,7 +61,7 @@ async function performCrossfadeUpdate(
     if (anchorCanvas) {
       const newScrollTop =
         anchorCanvas.offsetTop -
-        64 +
+        16 +
         relativeOffset * anchorCanvas.offsetHeight;
       state.currentBack.scrollTop = Math.max(0, newScrollTop);
     } else {

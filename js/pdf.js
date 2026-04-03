@@ -36,7 +36,7 @@ export function jumpToPage(inputVal, destArray = null) {
   if (targetContainer) {
     updateState({ ignoreScrollEvents: true });
 
-    let targetScrollTop = targetContainer.offsetTop - 64;
+    let targetScrollTop = targetContainer.offsetTop - 16;
 
     // Check if we have an explicit destination array with a "top" offset (Y-coordinate)
     if (destArray && Array.isArray(destArray) && destArray.length >= 4) {
@@ -70,12 +70,12 @@ export function jumpToPage(inputVal, destArray = null) {
           }
 
           const yOffsetPx = yOffsetPoint * scaleFactor;
-          targetScrollTop = targetContainer.offsetTop + yOffsetPx - 64;
+          targetScrollTop = targetContainer.offsetTop + yOffsetPx - 16;
 
           // Ensure we don't scroll past the bottom of the page
           targetScrollTop = Math.min(
             targetScrollTop,
-            targetContainer.offsetTop + pixelHeight - 64,
+            targetContainer.offsetTop + pixelHeight - 16,
           );
         }
       }
@@ -84,7 +84,7 @@ export function jumpToPage(inputVal, destArray = null) {
     if (
       targetPage === 1 &&
       (!destArray ||
-        Math.abs(targetScrollTop - targetContainer.offsetTop + 64) < 10)
+        Math.abs(targetScrollTop - targetContainer.offsetTop + 16) < 10)
     ) {
       targetScrollTop = 0;
     }
@@ -93,6 +93,14 @@ export function jumpToPage(inputVal, destArray = null) {
       top: targetScrollTop,
       behavior: "smooth",
     });
+
+    const resetIgnore = () => {
+      updateState({ ignoreScrollEvents: false });
+    };
+    state.currentFront.addEventListener("scrollend", resetIgnore, {
+      once: true,
+    });
+    setTimeout(resetIgnore, 1000);
   }
 }
 

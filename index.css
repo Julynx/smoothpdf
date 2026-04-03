@@ -303,13 +303,13 @@ html {
   box-sizing: border-box;
   display: flex;
   flex-direction: column;
-  height: 100%;
+  height: calc(100% - var(--drag-bar-height));
   left: 0;
   overflow: auto;
   padding-bottom: 24px;
-  padding-top: calc(var(--drag-bar-height) + 16px);
+  padding-top: 16px;
   position: absolute;
-  top: 0;
+  top: var(--drag-bar-height);
   transition: opacity 0.5s cubic-bezier(0.4, 0, 0.2, 1);
   width: 100%;
 }
