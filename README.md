@@ -8,6 +8,9 @@ _A modern PDF viewer designed for live preview workflows, with smooth animations
 
 https://github.com/user-attachments/assets/72e8df1a-28be-475f-9590-f581fb8fda5b
 
+> The workflow depicted in the video above involves editing a Markdown file in the Zed editor with autosave enabled, and uses `markdown-convert` with the `--mode=live` flag to convert it to PDF in the background as I type.
+> It is meant to showcase how SmoothPDF handles the file changing on disk, and renders the changes seamlessly in real time without flickering.
+
 ## Why SmoothPDF?
 
 I am yet to find a PDF viewer that doesn’t flicker (or leak memory and crash) whenever the open PDF file changes on disk.
