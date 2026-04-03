@@ -6,7 +6,7 @@ _A modern PDF viewer designed for live preview workflows, with smooth animations
 <img src="https://i.imgur.com/cSWO5Ta.png" height="64">
 </a><br><br>
 
-<video src="https://github.com/Julynx/smoothpdf/blob/main/readme_assets/readme_video.mp4" width="100%" controls></video>
+https://github.com/user-attachments/assets/72e8df1a-28be-475f-9590-f581fb8fda5b
 
 ## Why SmoothPDF?
 
