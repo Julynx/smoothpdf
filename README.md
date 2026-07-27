@@ -3,7 +3,7 @@
 _A modern PDF viewer designed for live preview workflows, with smooth animations instead of flickering._
 
 <a href="https://github.com/Julynx/smoothpdf/releases/latest/download/SmoothPDF_Setup.exe" target="_blank">
-<img src="https://i.imgur.com/cSWO5Ta.png" height="64">
+<img src="https://raw.githubusercontent.com/Julynx/julynx/refs/heads/main/assets/download.png" height="48">
 </a><br><br>
 
 https://github.com/user-attachments/assets/72e8df1a-28be-475f-9590-f581fb8fda5b
