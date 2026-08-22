@@ -1,16 +1,30 @@
 <p align="center">
-<img src="https://github.com/Julynx/smoothpdf/blob/main/public/icon.png" width=200px/>
+  <img
+    src="https://github.com/Julynx/smoothpdf/blob/main/public/icon.png"
+    width="200px"
+  />
 </p>
 
 <h3 align="center">SmoothPDF</h3>
-<p align="center"><i>A modern PDF viewer designed for live preview workflows, with smooth animations instead of flickering.</i></p>
+<p align="center">
+  <i
+    >A modern PDF viewer designed for live preview workflows, with smooth
+    animations instead of flickering.</i
+  >
+</p>
 
-<hr/>
+<hr />
 
 <p align="center">
-<a href="https://github.com/Julynx/smoothpdf/releases/latest/download/SmoothPDF_Setup.exe" target="_blank">
-<img src="https://raw.githubusercontent.com/Julynx/julynx/refs/heads/main/assets/download.png" height="48">
-</a><br><br>
+  <a
+    href="https://github.com/Julynx/smoothpdf/releases/latest/download/SmoothPDF_Setup.exe"
+    target="_blank"
+  >
+    <img
+      src="https://raw.githubusercontent.com/Julynx/julynx/refs/heads/main/assets/download.png"
+      height="48"
+    /> </a
+  ><br /><br />
 </p>
 
 https://github.com/user-attachments/assets/72e8df1a-28be-475f-9590-f581fb8fda5b
