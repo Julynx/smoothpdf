@@ -14,7 +14,7 @@
   "build": {
     "appId": "com.smoothpdf.viewer",
     "productName": "SmoothPDF",
-    "icon": "public/icon.png",
+    "icon": "public/icon.ico",
     "fileAssociations": [
       {
         "ext": "pdf",
