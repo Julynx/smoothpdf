@@ -1,11 +1,37 @@
 :root {
-  --bg-color: #0f1115;
-  --text-color: #f8fafc;
+  /* Palette */
+  --lighter-orange: #fbb954;
+  --light-orange: #f79617;
+  --dark-orange: #fb6b1d;
+  --lighter-green: #91db69;
+  --light-green: #1ebc73;
+  --dark-green: #239063;
+  --lighter-blue: #8fd3ff;
+  --light-blue: #4d9be6;
+  --dark-blue: #4d65b4;
+  --lighter-red: #f04f78;
+  --light-red: #c32454;
+  --dark-red: #831c5d;
+  --lighter-purple: #a884f3;
+  --light-purple: #905ea9;
+  --dark-purple: #6b3e75;
+  --white: #fff;
+  --lighter-gray: #c7cfcc;
+  --light-gray: #a8b5b2;
+  --gray: #819796;
+  --dark-gray: #394a50;
+  --darker-gray: #151d28;
+  --black: #10141f;
+
+  /* -- + -- */
+
+  --accent-color: var(--light-blue);
+  --accent-hover: var(--lighter-blue);
+  --bg-color: var(--black);
+  --border-color: var(--dark-gray);
   --drag-bar-height: 48px;
-  --accent-color: #3b82f6;
-  --accent-hover: #2563eb;
-  --border-color: rgb(255 255 255 / 6%);
-  --layer-bg: #13151a;
+  --layer-bg: var(--darker-gray);
+  --text-color: var(--lighter-gray);
 }
 
 body,
@@ -33,7 +59,7 @@ html {
   align-items: center;
   -webkit-app-region: drag;
   backdrop-filter: blur(16px);
-  background: rgb(15 17 21 / 75%);
+  background: var(--darker-gray);
   border-bottom: 1px solid var(--border-color);
   display: flex;
   height: var(--drag-bar-height);
@@ -57,7 +83,7 @@ html {
 .app-title {
   align-items: center;
   -webkit-app-region: drag;
-  color: #94a3b8;
+  color: var(--light-gray);
   display: flex;
   font-size: 13px;
   font-weight: 500;
@@ -70,6 +96,7 @@ html {
 }
 
 #app-title-text {
+  color: var(--lighter-gray);
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -86,12 +113,9 @@ html {
   align-items: center;
   -webkit-app-region: no-drag;
   background-color: var(--accent-color);
-  border: 1px solid rgb(255 255 255 / 10%);
+  border: 1px solid var(--white);
   border-radius: 6px;
-  box-shadow:
-    0 2px 5px rgb(0 0 0 / 20%),
-    inset 0 1px 0 rgb(255 255 255 / 10%);
-  color: white;
+  color: var(--white);
   cursor: pointer;
   display: flex;
   font-family: Inter, sans-serif;
@@ -104,15 +128,17 @@ html {
 
 .primary-btn:hover {
   background-color: var(--accent-hover);
-  box-shadow:
-    0 4px 8px rgb(0 0 0 / 30%),
-    inset 0 1px 0 rgb(255 255 255 / 15%);
-  transform: translateY(-1px);
 }
 
 .primary-btn:active {
-  box-shadow: 0 1px 2px rgb(0 0 0 / 20%);
+  background-color: var(--dark-blue);
+  box-shadow: 0 1px 2px var(--black);
   transform: translateY(0);
+}
+
+.primary-btn:focus-visible {
+  outline: 2px solid var(--lighter-blue);
+  outline-offset: 2px;
 }
 
 #pdf-controls {
@@ -130,7 +156,7 @@ html {
 
 .control-group {
   align-items: center;
-  background: rgb(255 255 255 / 4%);
+  background: var(--darker-gray);
   border: 1px solid var(--border-color);
   border-radius: 6px;
   display: flex;
@@ -159,28 +185,65 @@ html {
 }
 
 .icon-btn:hover {
-  background: rgb(255 255 255 / 10%);
+  background: var(--dark-gray);
+  color: var(--white);
   opacity: 1;
+}
+
+.icon-btn:focus-visible {
+  outline: 2px solid var(--light-blue);
+  outline-offset: 1px;
 }
 
 .icon-btn:disabled {
   background: transparent;
+  color: var(--gray);
   cursor: default;
   opacity: 0.3;
 }
 
 #print-btn {
+  color: var(--white);
+  background: transparent;
   margin: 6px 2px;
 }
 
+#print-btn:hover {
+  color: var(--white);
+  background: var(--lighter-green);
+  opacity: 1;
+}
+
+#print-btn:active {
+  background: var(--lighter-green);
+  color: var(--light-green);
+}
+
+#print-btn:focus-visible {
+  outline: 2px solid var(--lighter-green);
+  outline-offset: 1px;
+}
+
 #close-btn {
+  color: var(--white);
+  background: transparent;
   margin: 6px 2px;
 }
 
 #close-btn:hover {
-  background: rgb(239 68 68 / 20%);
-  color: #f87171;
+  color: var(--white);
+  background: var(--lighter-red);
   opacity: 1;
+}
+
+#close-btn:active {
+  background: var(--lighter-red);
+  color: var(--light-red);
+}
+
+#close-btn:focus-visible {
+  outline: 2px solid var(--lighter-red);
+  outline-offset: 1px;
 }
 
 .zoom-dropdown {
@@ -197,12 +260,22 @@ html {
 
 .zoom-dropdown:hover,
 .zoom-dropdown:focus {
-  background: rgb(255 255 255 / 10%);
+  background: var(--dark-gray);
+  color: var(--white);
+}
+
+.zoom-dropdown:focus-visible {
+  outline: 1px solid var(--light-blue);
 }
 
 .zoom-dropdown option {
   background: var(--layer-bg);
-  color: var(--text-color);
+  color: var(--lighter-gray);
+}
+
+.zoom-dropdown option:checked {
+  background: var(--dark-blue);
+  color: var(--white);
 }
 
 #page-input {
@@ -218,12 +291,18 @@ html {
   width: 32px;
 }
 
+#page-input:hover {
+  background: var(--dark-gray);
+}
+
 #page-input:focus {
-  background: rgb(255 255 255 / 10%);
+  background: var(--dark-gray);
+  color: var(--white);
+  outline: 1px solid var(--light-blue);
 }
 
 #page-count-text {
-  color: rgb(255 255 255 / 50%);
+  color: var(--gray);
   font-size: 13px;
   padding-right: 8px;
   user-select: none;
@@ -239,8 +318,8 @@ html {
   align-items: center;
   background: radial-gradient(
     circle at center,
-    rgb(30 34 42 / 50%) 0%,
-    rgb(15 17 21 / 100%) 100%
+    var(--darker-gray) 0%,
+    var(--black) 100%
   );
   display: flex;
   height: 100%;
@@ -256,24 +335,23 @@ html {
 #welcome-screen {
   align-items: center;
   backdrop-filter: blur(12px);
-  background: rgb(255 255 255 / 2%);
+  background: var(--darker-gray);
   border: 1px solid var(--border-color);
   border-radius: 16px;
-  box-shadow: 0 16px 40px rgb(0 0 0 / 20%);
+  box-shadow: 0 16px 40px var(--black);
   display: flex;
   flex-direction: column;
   gap: 20px;
+  justify-content: center;
   padding: 48px 64px;
 }
 
-#welcome-icon {
-  color: var(--accent-color);
-  margin-bottom: 8px;
-  opacity: 0.8;
+#open-file-btn.hidden {
+  display: none;
 }
 
 #message-text {
-  color: #94a3b8;
+  color: var(--light-gray);
   font-size: 15px;
   font-weight: 400;
   text-align: center;
@@ -331,20 +409,24 @@ html {
 }
 
 .pdf-layer::-webkit-scrollbar-thumb {
-  background: rgb(255 255 255 / 15%);
+  background: var(--dark-gray);
   border: 2px solid var(--layer-bg);
   border-radius: 5px;
 }
 
 .pdf-layer::-webkit-scrollbar-thumb:hover {
-  background: rgb(255 255 255 / 25%);
+  background: var(--gray);
+}
+
+.pdf-layer::-webkit-scrollbar-thumb:active {
+  background: var(--light-gray);
 }
 
 .page-container {
   border-radius: 6px;
   box-shadow:
-    0 12px 24px -8px rgb(0 0 0 / 60%),
-    0 4px 8px -4px rgb(0 0 0 / 40%);
+    0 12px 24px -8px var(--black),
+    0 4px 8px -4px var(--black);
   margin-bottom: 24px;
   margin-left: auto;
   margin-right: auto;
@@ -355,14 +437,42 @@ html {
   user-select: text;
 }
 
+.textLayer ::selection {
+  background: var(--lighter-orange);
+  color: var(--darker-gray);
+}
+
+.textLayer .highlight {
+  background-color: var(--light-orange);
+}
+
+.textLayer .highlight.selected {
+  background-color: var(--dark-orange);
+}
+
 .annotationLayer {
   left: 0;
   position: absolute;
   top: 0;
 }
 
+.annotationLayer .linkAnnotation > a {
+  outline: 1px solid var(--dark-purple);
+}
+
+.annotationLayer .linkAnnotation > a:hover {
+  background: var(--lighter-purple);
+  outline: 2px solid var(--light-purple);
+}
+
+.annotationLayer .popup {
+  background: var(--dark-purple);
+  border: 1px solid var(--light-purple);
+  color: var(--white);
+}
+
 canvas {
-  background-color: white; /* Give canvas a white backdrop in case PDF relies on it */
+  background-color: var(--white);
   border-radius: inherit;
   display: block;
 }
@@ -376,7 +486,7 @@ canvas {
 
   body,
   html {
-    background: white !important;
+    background: var(--white) !important;
     height: auto !important;
     overflow: visible !important;
   }
@@ -386,7 +496,7 @@ canvas {
   }
 
   .pdf-layer {
-    background: white !important;
+    background: var(--white) !important;
     height: auto !important;
     overflow: visible !important;
     padding: 0 !important;

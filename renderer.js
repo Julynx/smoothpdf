@@ -169,7 +169,6 @@ async function closePdf() {
     updateWindowTitle(null);
 
     if (ui.openFileBtn) ui.openFileBtn.classList.remove("hidden");
-    if (ui.welcomeIcon) ui.welcomeIcon.classList.remove("hidden");
 
     showMessage("No PDF loaded. Click 'Open PDF' to begin.");
   } catch (err) {
@@ -322,7 +321,6 @@ if (ui.openFileBtn) {
         await updateState({ currentPdfPath: filePath });
         updateWindowTitle(filePath);
         ui.openFileBtn.classList.add("hidden");
-        if (ui.welcomeIcon) ui.welcomeIcon.classList.add("hidden");
         showMessage("Loading your beautiful PDF...");
         await loadAndRenderPdf(filePath);
       }
@@ -348,7 +346,6 @@ async function init() {
       await updateState({ currentPdfPath: filePath });
       updateWindowTitle(filePath);
       ui.openFileBtn.classList.add("hidden");
-      if (ui.welcomeIcon) ui.welcomeIcon.classList.add("hidden");
       showMessage("Loading your beautiful PDF...");
       await loadAndRenderPdf(filePath);
     } else {

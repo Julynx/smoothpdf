@@ -13,7 +13,6 @@ const elements = {
   printBtn: document.getElementById("print-btn"),
   closeBtn: document.getElementById("close-btn"),
   appTitleText: document.getElementById("app-title-text"),
-  welcomeIcon: document.getElementById("welcome-icon"),
 };
 
 export function getUIElements() {
