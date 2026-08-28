@@ -437,38 +437,10 @@ html {
   user-select: text;
 }
 
-.textLayer ::selection {
-  background: var(--lighter-orange);
-  color: var(--darker-gray);
-}
-
-.textLayer .highlight {
-  background-color: var(--light-orange);
-}
-
-.textLayer .highlight.selected {
-  background-color: var(--dark-orange);
-}
-
 .annotationLayer {
   left: 0;
   position: absolute;
   top: 0;
-}
-
-.annotationLayer .linkAnnotation > a {
-  outline: 1px solid var(--dark-purple);
-}
-
-.annotationLayer .linkAnnotation > a:hover {
-  background: var(--lighter-purple);
-  outline: 2px solid var(--light-purple);
-}
-
-.annotationLayer .popup {
-  background: var(--dark-purple);
-  border: 1px solid var(--light-purple);
-  color: var(--white);
 }
 
 canvas {
