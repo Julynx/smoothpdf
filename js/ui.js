@@ -92,7 +92,58 @@ export function updateControlsUI() {
 }
 
 /**
- * Sets up an intersection observer to track the active page number during scrolling.
+ * Deterministically calculates and updates the active page number from scroll position.
+ * @param {HTMLElement} layerElement - The container layer element.
+ * @returns {void}
+ */
+export function syncCurrentPageFromScroll(layerElement) {
+  if (!layerElement || state.ignoreScrollEvents || state.totalPages <= 0) {
+    return;
+  }
+
+  const scrollTop = layerElement.scrollTop;
+  const clientHeight = layerElement.clientHeight;
+  const scrollHeight = layerElement.scrollHeight;
+
+  let targetPage = 1;
+  if (scrollTop <= 16) {
+    targetPage = 1;
+  } else if (scrollTop + clientHeight >= scrollHeight - 16) {
+    targetPage = state.totalPages;
+  } else {
+    const targetCenter = scrollTop + clientHeight / 2;
+    const containers = layerElement.querySelectorAll(".page-container");
+    let low = 0;
+    let high = containers.length - 1;
+
+    while (low <= high) {
+      const mid = Math.floor((low + high) / 2);
+      const container = containers[mid];
+      const containerTop = container.offsetTop;
+      const containerBottom = containerTop + container.offsetHeight + 24;
+
+      if (targetCenter >= containerTop && targetCenter < containerBottom) {
+        targetPage = parseInt(container.dataset.pageNumber, 10) || mid + 1;
+        break;
+      } else if (targetCenter < containerTop) {
+        high = mid - 1;
+      } else {
+        low = mid + 1;
+      }
+    }
+  }
+
+  targetPage = Math.max(1, Math.min(targetPage, state.totalPages));
+  if (targetPage !== state.currentPageNumber) {
+    state.currentPageNumber = targetPage;
+    if (elements.pageInput && document.activeElement !== elements.pageInput) {
+      elements.pageInput.value = targetPage;
+    }
+  }
+}
+
+/**
+ * Sets up scroll event listeners to track the active page number during scrolling.
  * @param {HTMLElement} layerElement - The container layer element to observe.
  * @returns {Promise<void>}
  */
@@ -101,35 +152,34 @@ export async function setupPageObserver(layerElement) {
     state.pageObserver.disconnect();
   }
 
-  const pageObserver = new IntersectionObserver(
-    (entries) => {
-      if (state.ignoreScrollEvents) {
-        return;
-      }
+  let isScrollScheduled = false;
+  const onScroll = () => {
+    if (isScrollScheduled) {
+      return;
+    }
+    isScrollScheduled = true;
+    requestAnimationFrame(() => {
+      isScrollScheduled = false;
+      syncCurrentPageFromScroll(layerElement);
+    });
+  };
 
-      entries.forEach(async (entry) => {
-        if (entry.isIntersecting) {
-          const pageNumber = parseInt(entry.target.dataset.pageNumber, 10);
-          if (pageNumber && pageNumber !== state.currentPageNumber) {
-            await updateState({ currentPageNumber: pageNumber });
-            if (elements.pageInput) {
-              elements.pageInput.value = state.currentPageNumber;
-            }
-          }
-        }
-      });
+  const onScrollEnd = () => {
+    syncCurrentPageFromScroll(layerElement);
+  };
+
+  layerElement.addEventListener("scroll", onScroll, { passive: true });
+  layerElement.addEventListener("scrollend", onScrollEnd, { passive: true });
+
+  const pageObserver = {
+    disconnect: () => {
+      layerElement.removeEventListener("scroll", onScroll);
+      layerElement.removeEventListener("scrollend", onScrollEnd);
     },
-    {
-      root: layerElement,
-      rootMargin: "-50% 0px -50% 0px",
-      threshold: 0,
-    },
-  );
+  };
 
   await updateState({ pageObserver });
-
-  const containers = layerElement.querySelectorAll(".page-container");
-  containers.forEach((container) => pageObserver.observe(container));
+  syncCurrentPageFromScroll(layerElement);
 }
 
 /**
@@ -145,6 +195,10 @@ export async function setupVisibilityObserver(layerElement, pdfDocument) {
 
   const visibilityObserver = new IntersectionObserver(
     (entries) => {
+      if (state.isScrollNavigating) {
+        return;
+      }
+
       entries.forEach((entry) => {
         const pageContainer = entry.target;
         if (entry.isIntersecting) {

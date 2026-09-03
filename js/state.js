@@ -14,6 +14,7 @@ export const state = {
   currentZoomMode: "1.25",
   totalPages: 0,
   currentPageNumber: 1,
+  isScrollNavigating: false,
   pageObserver: null,
   visibilityObserver: null,
   ignoreScrollEvents: false,

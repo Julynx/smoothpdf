@@ -4,12 +4,13 @@
  */
 
 import * as pdfjsLib from "../public/pdf.mjs";
-import { state, updateState } from "./state.js";
-import { getUIElements } from "./ui.js";
+import { state } from "./state.js";
+import { getUIElements, syncCurrentPageFromScroll } from "./ui.js";
 
 pdfjsLib.GlobalWorkerOptions.workerSrc = "../public/pdf.worker.mjs";
 
 const activeRenderTasks = new WeakMap();
+let activeNavigationId = 0;
 
 /**
  * Loads a PDF document from a given local file path.
@@ -154,7 +155,7 @@ export function calculatePageScale(
 }
 
 /**
- * Scrolls the document to a target page and optional destination coordinates.
+ * Scrolls the document smoothly to a target page and optional destination coordinates.
  * @param {number|string} inputVal - The target page number.
  * @param {Array<any>|null} [destArray=null] - Optional explicit destination array from PDF.js.
  * @returns {void}
@@ -175,13 +176,6 @@ export function jumpToPage(inputVal, destArray = null) {
 
   targetPageNumber = Math.max(1, Math.min(targetPageNumber, state.totalPages));
 
-  if (elements.pageInput) {
-    elements.pageInput.value = targetPageNumber;
-  }
-  if (targetPageNumber !== state.currentPageNumber) {
-    updateState({ currentPageNumber: targetPageNumber });
-  }
-
   const targetContainer = state.currentFront.querySelector(
     `.page-container[data-page-number="${targetPageNumber}"]`,
   );
@@ -189,8 +183,6 @@ export function jumpToPage(inputVal, destArray = null) {
   if (!targetContainer) {
     return;
   }
-
-  updateState({ ignoreScrollEvents: true });
 
   let targetScrollTop = targetContainer.offsetTop - 16;
 
@@ -236,14 +228,43 @@ export function jumpToPage(inputVal, destArray = null) {
     targetScrollTop = 0;
   }
 
-  state.currentFront.scrollTop = Math.max(0, targetScrollTop);
+  targetScrollTop = Math.max(0, targetScrollTop);
 
-  if (state.currentPdfDocument) {
-    renderVisiblePages(state.currentFront, state.currentPdfDocument);
+  if (Math.abs(state.currentFront.scrollTop - targetScrollTop) < 2) {
+    if (state.currentPdfDocument) {
+      renderVisiblePages(state.currentFront, state.currentPdfDocument);
+    }
+    return;
   }
 
-  requestAnimationFrame(() => {
-    updateState({ ignoreScrollEvents: false });
+  const currentNavigationId = ++activeNavigationId;
+  state.isScrollNavigating = true;
+  state.ignoreScrollEvents = true;
+  state.currentPageNumber = targetPageNumber;
+  if (elements.pageInput) {
+    elements.pageInput.value = targetPageNumber;
+  }
+
+  let settled = false;
+  const onScrollEnd = () => {
+    if (settled || activeNavigationId !== currentNavigationId) {
+      return;
+    }
+    settled = true;
+    state.isScrollNavigating = false;
+    state.ignoreScrollEvents = false;
+    if (state.currentPdfDocument) {
+      renderVisiblePages(state.currentFront, state.currentPdfDocument);
+    }
+    syncCurrentPageFromScroll(state.currentFront);
+  };
+
+  state.currentFront.addEventListener("scrollend", onScrollEnd, { once: true });
+  setTimeout(onScrollEnd, 1200);
+
+  state.currentFront.scrollTo({
+    top: targetScrollTop,
+    behavior: "smooth",
   });
 }
 
