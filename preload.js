@@ -1,8 +1,10 @@
+/**
+ * @module preload
+ * Exposes secure API channels between the main process and the renderer process.
+ */
+
 const { contextBridge, ipcRenderer } = require("electron");
 
-/**
- * Expose secure API channel to the renderer process.
- */
 contextBridge.exposeInMainWorld("api", {
   getFilePath: () => ipcRenderer.invoke("getFilePath"),
   onFileUpdated: (callback) => {

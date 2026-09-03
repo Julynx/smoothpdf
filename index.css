@@ -203,14 +203,14 @@ html {
 }
 
 #print-btn {
-  color: var(--white);
   background: transparent;
+  color: var(--white);
   margin: 6px 2px;
 }
 
 #print-btn:hover {
-  color: var(--white);
   background: var(--lighter-green);
+  color: var(--white);
   opacity: 1;
 }
 
@@ -225,14 +225,14 @@ html {
 }
 
 #close-btn {
-  color: var(--white);
   background: transparent;
+  color: var(--white);
   margin: 6px 2px;
 }
 
 #close-btn:hover {
-  color: var(--white);
   background: var(--lighter-red);
+  color: var(--white);
   opacity: 1;
 }
 
@@ -384,6 +384,7 @@ html {
   height: calc(100% - var(--drag-bar-height));
   left: 0;
   overflow: auto;
+  overflow-anchor: none;
   padding-bottom: 24px;
   padding-top: 16px;
   position: absolute;
@@ -423,13 +424,18 @@ html {
 }
 
 .page-container {
+  background-color: var(--white);
   border-radius: 6px;
   box-shadow:
     0 12px 24px -8px var(--black),
     0 4px 8px -4px var(--black);
+  box-sizing: border-box;
+  flex-shrink: 0;
   margin-bottom: 24px;
   margin-left: auto;
   margin-right: auto;
+  overflow: hidden;
+  overflow-anchor: none;
   position: relative;
 }
 

@@ -1,3 +1,11 @@
+/**
+ * @module state
+ * Centralized application state management for SmoothPDF.
+ */
+
+/**
+ * Global reactive application state.
+ */
 export const state = {
   currentPdfPath: null,
   currentPdfDocument: null,
@@ -7,13 +15,17 @@ export const state = {
   totalPages: 0,
   currentPageNumber: 1,
   pageObserver: null,
+  visibilityObserver: null,
   ignoreScrollEvents: false,
-
-  // UI state layer elements
   currentFront: document.getElementById("layer-1"),
   currentBack: document.getElementById("layer-2"),
 };
 
+/**
+ * Updates application state and cleans up resources if necessary.
+ * @param {Partial<typeof state>} updates - State properties to update.
+ * @returns {Promise<void>}
+ */
 export async function updateState(updates) {
   if (
     updates.currentPdfDocument !== undefined &&
@@ -23,7 +35,7 @@ export async function updateState(updates) {
     try {
       await state.currentPdfDocument.destroy();
     } catch (err) {
-      console.warn("Error destroying previous PDF document:", err);
+      console.error("Error destroying previous PDF document:", err);
     }
   }
 

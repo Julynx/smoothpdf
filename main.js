@@ -1,3 +1,8 @@
+/**
+ * @module main
+ * Electron main process entry point managing window lifecycle, file watching, and IPC channels.
+ */
+
 const {
   app,
   BrowserWindow,
@@ -12,12 +17,22 @@ const {
 const path = require("path");
 const { pathToFileURL } = require("url");
 
+/**
+ * Logs informational messages with an ISO timestamp.
+ * @param {string} msg - Informational message to log.
+ * @returns {void}
+ */
 const log = (msg) => {
   const timestamp = new Date().toISOString();
   const formattedMsg = `[INFO] ${timestamp} - ${msg}`;
   console.log(formattedMsg);
 };
 
+/**
+ * Logs error details with an ISO timestamp.
+ * @param {Error|string} err - Error object or error message.
+ * @returns {void}
+ */
 const logError = (err) => {
   const timestamp = new Date().toISOString();
   console.error(`[ERROR] ${timestamp} -`, err);
@@ -29,6 +44,7 @@ let targetPdf = null;
 
 /**
  * Initializes the main browser window.
+ * @returns {void}
  */
 function createWindow() {
   mainWindow = new BrowserWindow({
@@ -59,7 +75,6 @@ function createWindow() {
     },
   );
 
-  // Handle external links
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
     if (
       url.startsWith("http://") ||
@@ -87,6 +102,7 @@ function createWindow() {
 /**
  * Sets up the file watcher for the target PDF.
  * @param {string} filePath - Absolute path to the PDF to watch.
+ * @returns {Promise<void>}
  */
 async function setupWatcher(filePath) {
   if (watcher) {
