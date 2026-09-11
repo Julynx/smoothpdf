@@ -24,7 +24,16 @@
       src="https://raw.githubusercontent.com/Julynx/julynx/refs/heads/main/assets/download.png"
       height="48"
     /> </a
-  ><br /><br />
+  >&nbsp;&nbsp;<a
+    href="https://github.com/Julynx/smoothpdf/releases/latest/download/SmoothPDF_Setup.appimage"
+    target="_blank"
+  >
+    <img
+      src="https://raw.githubusercontent.com/Julynx/julynx/refs/heads/main/assets/download-linux.png"
+      height="48"
+    />
+  </a>
+  <br /><br />
 </p>
 
 https://github.com/user-attachments/assets/72e8df1a-28be-475f-9590-f581fb8fda5b
