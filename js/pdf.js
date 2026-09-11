@@ -10,6 +10,7 @@ import { getUIElements, syncCurrentPageFromScroll } from "./ui.js";
 pdfjsLib.GlobalWorkerOptions.workerSrc = "../public/pdf.worker.mjs";
 
 const activeRenderTasks = new WeakMap();
+const pageRenderGenerations = new WeakMap();
 let activeNavigationId = 0;
 
 /**
@@ -269,14 +270,40 @@ export function jumpToPage(inputVal, destArray = null) {
 }
 
 /**
+ * Determines whether a page container is within active render distance of the viewport.
+ * @param {HTMLElement} pageContainer - Page container DOM element.
+ * @param {number} [bufferPixels=1400] - Margin above and below viewport.
+ * @returns {boolean} Whether container is within render buffer.
+ */
+function isContainerWithinRenderBuffer(pageContainer, bufferPixels = 1400) {
+  const layerElement = pageContainer.parentElement;
+  if (!layerElement) {
+    return false;
+  }
+  const visibleTop = layerElement.scrollTop - bufferPixels;
+  const visibleBottom =
+    layerElement.scrollTop + layerElement.clientHeight + bufferPixels;
+  const containerTop = pageContainer.offsetTop;
+  const containerBottom = containerTop + pageContainer.offsetHeight;
+
+  return containerBottom >= visibleTop && containerTop <= visibleBottom;
+}
+
+/**
  * Renders the canvas, text layer, and annotation layer for a specific page container.
  * @param {HTMLElement} pageContainer - The DOM container element for the page.
  * @param {import("pdfjs-dist").PDFDocumentProxy} pdfDocument - The PDF document instance.
+ * @param {boolean} [forceWithinBuffer=false] - Whether to bypass viewport buffer check.
  * @returns {Promise<void>}
  */
-export async function renderPageContainer(pageContainer, pdfDocument) {
+export async function renderPageContainer(
+  pageContainer,
+  pdfDocument,
+  forceWithinBuffer = false,
+) {
+  const existingCanvas = pageContainer.querySelector("canvas");
   if (
-    pageContainer.dataset.renderStatus === "rendered" ||
+    (pageContainer.dataset.renderStatus === "rendered" && existingCanvas) ||
     pageContainer.dataset.renderStatus === "rendering"
   ) {
     return;
@@ -287,14 +314,32 @@ export async function renderPageContainer(pageContainer, pdfDocument) {
     return;
   }
 
+  const targetGeneration = (pageRenderGenerations.get(pageContainer) || 0) + 1;
+  pageRenderGenerations.set(pageContainer, targetGeneration);
   pageContainer.dataset.renderStatus = "rendering";
 
   let page;
   try {
     page = await pdfDocument.getPage(pageNumber);
   } catch (err) {
-    pageContainer.dataset.renderStatus = "idle";
+    if (pageRenderGenerations.get(pageContainer) === targetGeneration) {
+      pageContainer.dataset.renderStatus = "idle";
+    }
     console.error(`Failed to load page ${pageNumber}:`, err);
+    return;
+  }
+
+  if (
+    pageRenderGenerations.get(pageContainer) !== targetGeneration ||
+    pageContainer.dataset.renderStatus !== "rendering"
+  ) {
+    return;
+  }
+
+  if (!forceWithinBuffer && !isContainerWithinRenderBuffer(pageContainer)) {
+    if (pageRenderGenerations.get(pageContainer) === targetGeneration) {
+      pageContainer.dataset.renderStatus = "idle";
+    }
     return;
   }
 
@@ -307,10 +352,11 @@ export async function renderPageContainer(pageContainer, pdfDocument) {
   const outputScale = window.devicePixelRatio || 1;
 
   let canvas = pageContainer.querySelector("canvas");
-  if (!canvas) {
-    canvas = document.createElement("canvas");
-    pageContainer.appendChild(canvas);
+  if (canvas) {
+    canvas.remove();
   }
+  canvas = document.createElement("canvas");
+  pageContainer.appendChild(canvas);
 
   canvas.width = Math.floor(viewport.width * outputScale);
   canvas.height = Math.floor(viewport.height * outputScale);
@@ -329,17 +375,24 @@ export async function renderPageContainer(pageContainer, pdfDocument) {
   try {
     await renderTask.promise;
   } catch (err) {
+    if (pageRenderGenerations.get(pageContainer) === targetGeneration) {
+      pageContainer.dataset.renderStatus = "idle";
+    }
     if (err && err.name === "RenderingCancelledException") {
       return;
     }
-    pageContainer.dataset.renderStatus = "idle";
     console.error(`Page ${pageNumber} canvas render error:`, err);
     return;
   } finally {
-    activeRenderTasks.delete(pageContainer);
+    if (activeRenderTasks.get(pageContainer) === renderTask) {
+      activeRenderTasks.delete(pageContainer);
+    }
   }
 
-  if (pageContainer.dataset.renderStatus !== "rendering") {
+  if (
+    pageRenderGenerations.get(pageContainer) !== targetGeneration ||
+    pageContainer.dataset.renderStatus !== "rendering"
+  ) {
     return;
   }
 
@@ -355,12 +408,26 @@ export async function renderPageContainer(pageContainer, pdfDocument) {
     }
 
     const textContent = await page.getTextContent();
+    if (
+      pageRenderGenerations.get(pageContainer) !== targetGeneration ||
+      pageContainer.dataset.renderStatus !== "rendering"
+    ) {
+      return;
+    }
+
     const textLayer = new pdfjsLib.TextLayer({
       textContentSource: textContent,
       container: textLayerDiv,
       viewport: viewport,
     });
     await textLayer.render();
+
+    if (
+      pageRenderGenerations.get(pageContainer) !== targetGeneration ||
+      pageContainer.dataset.renderStatus !== "rendering"
+    ) {
+      return;
+    }
 
     let annotationLayerDiv = pageContainer.querySelector(".annotationLayer");
     if (!annotationLayerDiv) {
@@ -373,6 +440,13 @@ export async function renderPageContainer(pageContainer, pdfDocument) {
     }
 
     const annotations = await page.getAnnotations();
+    if (
+      pageRenderGenerations.get(pageContainer) !== targetGeneration ||
+      pageContainer.dataset.renderStatus !== "rendering"
+    ) {
+      return;
+    }
+
     const annotationLayer = new pdfjsLib.AnnotationLayer({
       div: annotationLayerDiv,
       accessibilityManager: null,
@@ -393,11 +467,19 @@ export async function renderPageContainer(pageContainer, pdfDocument) {
       renderForms: false,
     });
 
-    attachAnnotationClickHandler(annotationLayerDiv, pdfDocument);
+    if (
+      pageRenderGenerations.get(pageContainer) !== targetGeneration ||
+      pageContainer.dataset.renderStatus !== "rendering"
+    ) {
+      return;
+    }
 
+    attachAnnotationClickHandler(annotationLayerDiv, pdfDocument);
     pageContainer.dataset.renderStatus = "rendered";
   } catch (err) {
-    pageContainer.dataset.renderStatus = "idle";
+    if (pageRenderGenerations.get(pageContainer) === targetGeneration) {
+      pageContainer.dataset.renderStatus = "idle";
+    }
     console.error(`Page ${pageNumber} layer render error:`, err);
   }
 }
@@ -408,6 +490,9 @@ export async function renderPageContainer(pageContainer, pdfDocument) {
  * @returns {void}
  */
 export function unrenderPageContainer(pageContainer) {
+  const currentGeneration = (pageRenderGenerations.get(pageContainer) || 0) + 1;
+  pageRenderGenerations.set(pageContainer, currentGeneration);
+
   const currentTask = activeRenderTasks.get(pageContainer);
   if (currentTask) {
     try {
@@ -458,7 +543,7 @@ export async function renderVisiblePages(
     const containerBottom = containerTop + container.offsetHeight;
 
     if (containerBottom >= visibleTop && containerTop <= visibleBottom) {
-      renderPromises.push(renderPageContainer(container, pdfDocument));
+      renderPromises.push(renderPageContainer(container, pdfDocument, true));
     }
   });
 
@@ -533,7 +618,7 @@ export async function renderDocumentToLayer(
 export async function renderAllPagesForPrint(layerElement, pdfDocument) {
   const containers = layerElement.querySelectorAll(".page-container");
   const renderPromises = Array.from(containers).map((container) =>
-    renderPageContainer(container, pdfDocument),
+    renderPageContainer(container, pdfDocument, true),
   );
   await Promise.all(renderPromises);
 }

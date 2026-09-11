@@ -4,7 +4,11 @@
  */
 
 import { state, updateState } from "./state.js";
-import { renderPageContainer, unrenderPageContainer } from "./pdf.js";
+import {
+  renderPageContainer,
+  unrenderPageContainer,
+  renderVisiblePages,
+} from "./pdf.js";
 
 const elements = {
   messageOverlay: document.getElementById("message-overlay"),
@@ -143,7 +147,7 @@ export function syncCurrentPageFromScroll(layerElement) {
 }
 
 /**
- * Sets up scroll event listeners to track the active page number during scrolling.
+ * Sets up scroll event listeners to track the active page number during scrolling and reconcile rendering.
  * @param {HTMLElement} layerElement - The container layer element to observe.
  * @returns {Promise<void>}
  */
@@ -153,19 +157,36 @@ export async function setupPageObserver(layerElement) {
   }
 
   let isScrollScheduled = false;
-  const onScroll = () => {
-    if (isScrollScheduled) {
+  let scrollIdleDebounceTimer = null;
+
+  const reconcilePages = () => {
+    if (state.isScrollNavigating || !state.currentPdfDocument) {
       return;
     }
-    isScrollScheduled = true;
-    requestAnimationFrame(() => {
-      isScrollScheduled = false;
-      syncCurrentPageFromScroll(layerElement);
+    renderVisiblePages(layerElement, state.currentPdfDocument).catch((err) => {
+      console.error("Error reconciling visible pages on scroll:", err);
     });
   };
 
+  const onScroll = () => {
+    if (!isScrollScheduled) {
+      isScrollScheduled = true;
+      requestAnimationFrame(() => {
+        isScrollScheduled = false;
+        syncCurrentPageFromScroll(layerElement);
+      });
+    }
+
+    clearTimeout(scrollIdleDebounceTimer);
+    scrollIdleDebounceTimer = setTimeout(() => {
+      reconcilePages();
+    }, 120);
+  };
+
   const onScrollEnd = () => {
+    clearTimeout(scrollIdleDebounceTimer);
     syncCurrentPageFromScroll(layerElement);
+    reconcilePages();
   };
 
   layerElement.addEventListener("scroll", onScroll, { passive: true });
@@ -173,6 +194,7 @@ export async function setupPageObserver(layerElement) {
 
   const pageObserver = {
     disconnect: () => {
+      clearTimeout(scrollIdleDebounceTimer);
       layerElement.removeEventListener("scroll", onScroll);
       layerElement.removeEventListener("scrollend", onScrollEnd);
     },
