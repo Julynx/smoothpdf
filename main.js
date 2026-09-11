@@ -15,7 +15,9 @@ const {
   shell,
 } = require("electron");
 const path = require("path");
-const { pathToFileURL } = require("url");
+const { pathToFileURL, fileURLToPath } = require("url");
+
+app.setName("SmoothPDF");
 
 /**
  * Logs informational messages with an ISO timestamp.
@@ -43,18 +45,52 @@ let watcher = null;
 let targetPdf = null;
 
 /**
+ * Resolves the startup PDF target path from command line arguments.
+ * @param {string[]} rawArguments - Command line arguments passed to the process.
+ * @returns {string|null} Resolved absolute path or null if no valid file is provided.
+ */
+function resolveStartupPdfPath(rawArguments) {
+  const candidateArguments = rawArguments.filter(
+    (arg) => typeof arg === "string" && !arg.startsWith("-"),
+  );
+
+  for (const candidate of candidateArguments) {
+    try {
+      let candidatePath = candidate;
+      if (candidate.startsWith("file://")) {
+        candidatePath = fileURLToPath(candidate);
+      }
+      return path.resolve(candidatePath);
+    } catch {
+      continue;
+    }
+  }
+
+  return null;
+}
+
+/**
  * Initializes the main browser window.
  * @returns {void}
  */
 function createWindow() {
+  const isWindows = process.platform === "win32";
+  const iconPath = path.join(__dirname, "public", "icon.png");
+
   mainWindow = new BrowserWindow({
     width: 1000,
     height: 800,
-    titleBarStyle: "hidden",
-    titleBarOverlay: {
-      color: "rgba(0,0,0,0)",
-      symbolColor: "#ffffff",
-    },
+    frame: !isWindows,
+    titleBarStyle: isWindows ? "hidden" : "default",
+    ...(isWindows
+      ? {
+          titleBarOverlay: {
+            color: "rgba(0,0,0,0)",
+            symbolColor: "#ffffff",
+          },
+        }
+      : {}),
+    icon: iconPath,
     backgroundColor: "#121212",
     webPreferences: {
       preload: path.join(__dirname, "preload.js"),
@@ -114,19 +150,22 @@ async function setupWatcher(filePath) {
   log(`Setting up watcher for ${filePath}`);
   watcher = chokidar.watch(filePath, {
     persistent: true,
+    atomic: true,
     awaitWriteFinish: {
       stabilityThreshold: 150,
       pollInterval: 100,
     },
   });
 
-  watcher.on("change", () => {
+  const notifyFileUpdated = () => {
     log(`File changed: ${filePath}`);
     if (mainWindow && !mainWindow.isDestroyed()) {
       mainWindow.webContents.send("fileUpdated", filePath);
     }
-  });
+  };
 
+  watcher.on("change", notifyFileUpdated);
+  watcher.on("add", notifyFileUpdated);
   watcher.on("error", (err) => logError(err));
 }
 
@@ -146,9 +185,9 @@ app.whenReady().then(() => {
     return net.fetch(pathToFileURL(absoluteRequestedPath).href);
   });
 
-  const args = process.argv.slice(app.isPackaged ? 1 : 2);
-  if (args.length > 0) {
-    targetPdf = path.resolve(args[0]);
+  const rawArgs = process.argv.slice(app.isPackaged ? 1 : 2);
+  targetPdf = resolveStartupPdfPath(rawArgs);
+  if (targetPdf) {
     log(`Target PDF: ${targetPdf}`);
   } else {
     log("No PDF specified on startup.");

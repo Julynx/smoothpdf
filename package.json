@@ -9,18 +9,21 @@
     "build": "electron-builder build --win",
     "build:installer": "electron-builder build --win nsis",
     "build:portable": "electron-builder build --win portable",
+    "build:linux": "electron-builder build --linux",
+    "build:appimage": "electron-builder build --linux appimage",
+    "build:deb": "electron-builder build --linux deb",
     "lint": "eslint . && stylelint **/*.css",
     "lint:fix": "eslint . --fix && stylelint **/*.css --fix"
   },
   "build": {
     "appId": "com.smoothpdf.viewer",
     "productName": "SmoothPDF",
-    "icon": "public/icon.ico",
     "fileAssociations": [
       {
         "ext": "pdf",
         "name": "PDF Document",
         "description": "Portable Document Format",
+        "mimeType": "application/pdf",
         "role": "Viewer"
       }
     ],
@@ -50,10 +53,33 @@
       "!.github/**/*"
     ],
     "win": {
+      "icon": "public/icon.ico",
       "target": [
         "nsis",
         "portable"
       ]
+    },
+    "linux": {
+      "icon": "public/icon.png",
+      "category": "Office",
+      "target": [
+        "AppImage",
+        "deb"
+      ],
+      "maintainer": "Omega",
+      "desktop": {
+        "StartupWMClass": "smooth-pdf",
+        "Name": "SmoothPDF",
+        "Comment": "Smooth live-reloading PDF viewer",
+        "Keywords": "pdf;viewer;document;"
+      }
+    },
+    "deb": {
+      "priority": "optional",
+      "packageCategory": "graphics"
+    },
+    "appImage": {
+      "artifactName": "${productName}-${version}.${ext}"
     }
   },
   "keywords": [

@@ -173,12 +173,16 @@ function extractArchive(archiveFilePath, targetDirectory) {
   for (const strategy of extractionStrategies) {
     const success = strategy.run(archiveFilePath, targetDirectory);
     if (success) {
-      console.log(`[postinstall] Successfully extracted Electron using ${strategy.name}`);
+      console.log(
+        `[postinstall] Successfully extracted Electron using ${strategy.name}`,
+      );
       return;
     }
   }
 
-  throw new Error("Failed to extract Electron binary using any available extraction strategy.");
+  throw new Error(
+    "Failed to extract Electron binary using any available extraction strategy.",
+  );
 }
 
 /**
@@ -194,7 +198,9 @@ async function main() {
   );
 
   if (!fs.existsSync(electronPackageDirectory)) {
-    console.log("[postinstall] Electron package not found in node_modules, skipping.");
+    console.log(
+      "[postinstall] Electron package not found in node_modules, skipping.",
+    );
     return;
   }
 
@@ -220,7 +226,9 @@ async function main() {
     return;
   }
 
-  console.log(`[postinstall] Ensuring Electron v${electronVersion} binary is installed for ${targetPlatform}-${targetArchitecture}...`);
+  console.log(
+    `[postinstall] Ensuring Electron v${electronVersion} binary is installed for ${targetPlatform}-${targetArchitecture}...`,
+  );
 
   const downloadedZipPath = await downloadArtifact({
     version: electronVersion,
@@ -229,10 +237,7 @@ async function main() {
     arch: targetArchitecture,
   });
 
-  const distDestinationDirectory = path.join(
-    electronPackageDirectory,
-    "dist",
-  );
+  const distDestinationDirectory = path.join(electronPackageDirectory, "dist");
 
   extractArchive(downloadedZipPath, distDestinationDirectory);
 
@@ -244,6 +249,17 @@ async function main() {
     throw new Error(
       `Electron executable was not found at expected location: ${destinationExecutablePath}`,
     );
+  }
+
+  if (process.platform !== "win32") {
+    try {
+      fs.chmodSync(destinationExecutablePath, 0o755);
+    } catch (permissionError) {
+      console.warn(
+        `[postinstall] Failed to set execute permissions on ${destinationExecutablePath}:`,
+        permissionError,
+      );
+    }
   }
 
   const pathRecordFile = path.join(electronPackageDirectory, "path.txt");

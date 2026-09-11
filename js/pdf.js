@@ -55,7 +55,10 @@ function createLinkService(pdfDocument) {
                   jumpToPage(pageIndex + 1, explicitDest);
                 })
                 .catch((err) => {
-                  console.error("Failed to resolve destination page index:", err);
+                  console.error(
+                    "Failed to resolve destination page index:",
+                    err,
+                  );
                 });
             }
           })
