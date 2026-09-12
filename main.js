@@ -9,13 +9,13 @@ const {
   ipcMain,
   dialog,
   protocol,
-  net,
   Menu,
   MenuItem,
   shell,
 } = require("electron");
+const fs = require("fs");
 const path = require("path");
-const { pathToFileURL, fileURLToPath } = require("url");
+const { fileURLToPath } = require("url");
 
 app.setName("SmoothPDF");
 
@@ -171,18 +171,36 @@ async function setupWatcher(filePath) {
 
 app.whenReady().then(() => {
   protocol.handle("safe-file", (request) => {
-    const rawPath = request.url.slice("safe-file://".length);
-    const decodedPath = decodeURIComponent(rawPath);
+    try {
+      const urlWithoutQuery = request.url.split("?")[0];
+      const rawPath = urlWithoutQuery.slice("safe-file://".length);
+      const decodedPath = decodeURIComponent(rawPath);
 
-    const absoluteRequestedPath = path.resolve(decodedPath);
-    const absoluteTargetPath = targetPdf ? path.resolve(targetPdf) : null;
+      const absoluteRequestedPath = path.resolve(decodedPath);
+      const absoluteTargetPath = targetPdf ? path.resolve(targetPdf) : null;
 
-    if (!absoluteTargetPath || absoluteRequestedPath !== absoluteTargetPath) {
-      logError(`Unauthorized file access attempt: ${absoluteRequestedPath}`);
-      return new Response("Unauthorized access", { status: 403 });
+      if (!absoluteTargetPath || absoluteRequestedPath !== absoluteTargetPath) {
+        logError(`Unauthorized file access attempt: ${absoluteRequestedPath}`);
+        return new Response("Unauthorized access", { status: 403 });
+      }
+
+      if (!fs.existsSync(absoluteRequestedPath)) {
+        return new Response("Not found", { status: 404 });
+      }
+
+      const fileData = fs.readFileSync(absoluteRequestedPath);
+      return new Response(fileData, {
+        headers: {
+          "Content-Type": "application/pdf",
+          "Content-Length": String(fileData.length),
+          "Cache-Control": "no-store, no-cache, must-revalidate",
+          Pragma: "no-cache",
+        },
+      });
+    } catch (handlerError) {
+      logError(`Error serving safe-file: ${handlerError.message}`);
+      return new Response("Error reading file", { status: 500 });
     }
-
-    return net.fetch(pathToFileURL(absoluteRequestedPath).href);
   });
 
   const rawArgs = process.argv.slice(app.isPackaged ? 1 : 2);

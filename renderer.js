@@ -3,7 +3,7 @@
  * Main renderer orchestration, crossfade transitions, event handling, and initialization.
  */
 
-import { state, updateState } from "./js/state.js";
+import { state, destroyPdfDocument } from "./js/state.js";
 import {
   getUIElements,
   updateWindowTitle,
@@ -25,19 +25,21 @@ import {
 const ui = getUIElements();
 
 /**
- * Checks for queued render options and executes the next crossfade update if present.
- * @returns {Promise<void>}
+ * Processes queued crossfade render options or resets active rendering state.
+ * @returns {void}
  */
-async function checkPending() {
+function handlePendingOrUnlock() {
   if (state.pendingRenderOptions) {
-    const options = state.pendingRenderOptions;
-    await updateState({ pendingRenderOptions: null });
+    const pendingOptions = state.pendingRenderOptions;
+    state.pendingRenderOptions = null;
     performCrossfadeUpdate(
-      state.currentPdfPath,
-      options.anchorPage,
-      options.isInstant,
-      options.forceReload,
+      pendingOptions.filePath || state.currentPdfPath,
+      pendingOptions.anchorPage,
+      pendingOptions.isInstant,
+      pendingOptions.forceReload,
     );
+  } else {
+    state.isRendering = false;
   }
 }
 
@@ -55,54 +57,107 @@ async function performCrossfadeUpdate(
   isInstant = false,
   forceReload = false,
 ) {
-  await updateState({ isRendering: true });
+  state.isRendering = true;
+  const currentRenderPass = ++state.renderPassIdentifier;
   try {
-    let pdfDocument;
-    if (
-      !forceReload &&
-      filePath === state.currentPdfPath &&
-      state.currentPdfDocument
-    ) {
-      pdfDocument = state.currentPdfDocument;
-    } else {
-      pdfDocument = await loadPdfDocument(filePath);
-      await updateState({ currentPdfDocument: pdfDocument });
-    }
-
-    await updateState({ totalPages: pdfDocument.numPages });
-    updateControlsUI();
-
-    const currentScrollPos = state.currentFront.scrollTop;
+    const supersededDocument = state.currentPdfDocument;
+    const activePageNumber = state.currentPageNumber || 1;
+    const currentScrollPosition = state.currentFront
+      ? state.currentFront.scrollTop
+      : 0;
+    const targetAnchorPage =
+      anchorPage !== null ? anchorPage : activePageNumber;
 
     let relativeOffset = 0;
-    if (anchorPage) {
+    if (targetAnchorPage && state.currentFront) {
       const oldAnchorCanvas = state.currentFront.querySelector(
-        `.page-container[data-page-number="${anchorPage}"]`,
+        `.page-container[data-page-number="${targetAnchorPage}"]`,
       );
-      if (oldAnchorCanvas) {
+      if (oldAnchorCanvas && oldAnchorCanvas.offsetHeight > 0) {
         const distanceIntoPage =
-          currentScrollPos + 16 - oldAnchorCanvas.offsetTop;
+          currentScrollPosition + 16 - oldAnchorCanvas.offsetTop;
         relativeOffset = distanceIntoPage / oldAnchorCanvas.offsetHeight;
       }
     }
 
+    const resolvedPath = filePath || state.currentPdfPath;
+    let newDocument;
+    if (
+      !forceReload &&
+      resolvedPath === state.currentPdfPath &&
+      state.currentPdfDocument &&
+      !state.currentPdfDocument.destroyed
+    ) {
+      newDocument = state.currentPdfDocument;
+    } else {
+      newDocument = await loadPdfDocument(resolvedPath);
+    }
+
+    if (state.renderPassIdentifier !== currentRenderPass) {
+      if (newDocument && newDocument !== supersededDocument) {
+        await destroyPdfDocument(newDocument);
+      }
+      return;
+    }
+
+    const targetPage = Math.max(
+      1,
+      Math.min(targetAnchorPage, newDocument.numPages),
+    );
+    if (!state.pendingRenderOptions) {
+      state.currentPdfPath = resolvedPath;
+    }
+    state.totalPages = newDocument.numPages;
+    state.currentPageNumber = targetPage;
+    updateControlsUI();
+
     const anchorCanvas = await renderDocumentToLayer(
-      pdfDocument,
+      newDocument,
       state.currentBack,
-      anchorPage,
+      targetPage,
     );
 
+    if (state.renderPassIdentifier !== currentRenderPass) {
+      if (newDocument && newDocument !== supersededDocument) {
+        await destroyPdfDocument(newDocument);
+      }
+      return;
+    }
+
+    let calculatedScrollTop = currentScrollPosition;
     if (anchorCanvas) {
-      const newScrollTop =
+      calculatedScrollTop =
         anchorCanvas.offsetTop -
         16 +
         relativeOffset * anchorCanvas.offsetHeight;
-      state.currentBack.scrollTop = Math.max(0, newScrollTop);
-    } else {
-      state.currentBack.scrollTop = currentScrollPos;
+    }
+    if (state.currentBack.clientHeight > 0) {
+      const maximumBackScroll = Math.max(
+        0,
+        state.currentBack.scrollHeight - state.currentBack.clientHeight,
+      );
+      calculatedScrollTop = Math.min(calculatedScrollTop, maximumBackScroll);
+    }
+    state.currentBack.scrollTop = Math.max(0, calculatedScrollTop);
+
+    await renderVisiblePages(state.currentBack, newDocument);
+
+    if (state.renderPassIdentifier !== currentRenderPass) {
+      if (newDocument && newDocument !== supersededDocument) {
+        await destroyPdfDocument(newDocument);
+      }
+      return;
     }
 
-    await renderVisiblePages(state.currentBack, pdfDocument);
+    if (state.pageObserver) {
+      state.pageObserver.disconnect();
+      state.pageObserver = null;
+    }
+    if (state.visibilityObserver) {
+      state.visibilityObserver.disconnect();
+      state.visibilityObserver = null;
+    }
+    cancelAllRenderTasks(state.currentFront);
 
     state.currentBack.style.transition = "none";
     state.currentBack.classList.remove("hidden");
@@ -117,11 +172,14 @@ async function performCrossfadeUpdate(
     state.currentFront.classList.add("hidden");
 
     if (!isInstant) {
-      await new Promise((resolve) => {
-        state.currentFront.addEventListener("transitionend", resolve, {
-          once: true,
-        });
-      });
+      await Promise.race([
+        new Promise((resolve) => {
+          state.currentFront.addEventListener("transitionend", resolve, {
+            once: true,
+          });
+        }),
+        new Promise((resolve) => setTimeout(resolve, 600)),
+      ]);
     }
 
     state.currentBack.classList.add("is-front");
@@ -129,11 +187,8 @@ async function performCrossfadeUpdate(
     state.currentFront.classList.add("is-back");
     state.currentFront.classList.remove("is-front");
 
-    cancelAllRenderTasks(state.currentFront);
     state.currentFront.innerHTML = "";
-
-    setupPageObserver(state.currentBack);
-    setupVisibilityObserver(state.currentBack, pdfDocument);
+    state.currentFront.scrollTop = 0;
 
     if (isInstant) {
       void state.currentFront.offsetWidth;
@@ -142,13 +197,23 @@ async function performCrossfadeUpdate(
       state.currentBack.style.transition = "";
     }
 
-    const temp = state.currentFront;
-    await updateState({ currentFront: state.currentBack, currentBack: temp });
-  } catch (err) {
-    console.error("Crossfade update error:", err);
+    const previousFrontLayer = state.currentFront;
+    state.currentFront = state.currentBack;
+    state.currentBack = previousFrontLayer;
+    state.currentPdfDocument = newDocument;
+
+    if (supersededDocument && supersededDocument !== newDocument) {
+      await destroyPdfDocument(supersededDocument);
+    }
+
+    setupPageObserver(state.currentFront);
+    setupVisibilityObserver(state.currentFront, newDocument);
+    updateControlsUI();
+    hideMessage();
+  } catch (crossfadeError) {
+    console.error("Crossfade update error:", crossfadeError);
   } finally {
-    await updateState({ isRendering: false });
-    checkPending();
+    handlePendingOrUnlock();
   }
 }
 
@@ -158,13 +223,19 @@ async function performCrossfadeUpdate(
  * @returns {Promise<void>}
  */
 async function loadAndRenderPdf(filePath) {
-  await updateState({ isRendering: true });
+  state.isRendering = true;
+  const currentRenderPass = ++state.renderPassIdentifier;
   try {
     const pdfDocument = await loadPdfDocument(filePath);
-    await updateState({
-      currentPdfDocument: pdfDocument,
-      totalPages: pdfDocument.numPages,
-    });
+    if (state.renderPassIdentifier !== currentRenderPass) {
+      await destroyPdfDocument(pdfDocument);
+      return;
+    }
+    const supersededDocument = state.currentPdfDocument;
+    state.currentPdfPath = filePath;
+    state.currentPdfDocument = pdfDocument;
+    state.totalPages = pdfDocument.numPages;
+    state.currentPageNumber = 1;
 
     updateControlsUI();
     if (ui.pdfControls) {
@@ -174,15 +245,18 @@ async function loadAndRenderPdf(filePath) {
     await renderDocumentToLayer(pdfDocument, state.currentFront);
     await renderVisiblePages(state.currentFront, pdfDocument);
 
+    if (supersededDocument && supersededDocument !== pdfDocument) {
+      await destroyPdfDocument(supersededDocument);
+    }
+
     setupPageObserver(state.currentFront);
     setupVisibilityObserver(state.currentFront, pdfDocument);
     hideMessage();
-  } catch (err) {
-    console.error("Initial load error:", err);
+  } catch (initialLoadError) {
+    console.error("Initial load error:", initialLoadError);
     showMessage("Failed to load initial PDF");
   } finally {
-    await updateState({ isRendering: false });
-    checkPending();
+    handlePendingOrUnlock();
   }
 }
 
@@ -193,27 +267,33 @@ async function loadAndRenderPdf(filePath) {
 async function closePdf() {
   try {
     await window.api.closeFile();
-    await updateState({
-      currentPdfPath: null,
-      currentPdfDocument: null,
-      totalPages: 0,
-      currentPageNumber: 1,
-    });
-
     if (state.pageObserver) {
       state.pageObserver.disconnect();
-      await updateState({ pageObserver: null });
+      state.pageObserver = null;
     }
-
     if (state.visibilityObserver) {
       state.visibilityObserver.disconnect();
-      await updateState({ visibilityObserver: null });
+      state.visibilityObserver = null;
     }
+    if (state.currentFront) {
+      cancelAllRenderTasks(state.currentFront);
+      state.currentFront.innerHTML = "";
+    }
+    if (state.currentBack) {
+      cancelAllRenderTasks(state.currentBack);
+      state.currentBack.innerHTML = "";
+    }
+    const supersededDocument = state.currentPdfDocument;
+    state.currentPdfPath = null;
+    state.currentPdfDocument = null;
+    state.totalPages = 0;
+    state.currentPageNumber = 1;
+    state.pendingRenderOptions = null;
+    state.isRendering = false;
 
-    cancelAllRenderTasks(state.currentFront);
-    cancelAllRenderTasks(state.currentBack);
-    state.currentFront.innerHTML = "";
-    state.currentBack.innerHTML = "";
+    if (supersededDocument) {
+      await destroyPdfDocument(supersededDocument);
+    }
 
     if (ui.pdfControls) {
       ui.pdfControls.classList.add("hidden");
@@ -225,93 +305,98 @@ async function closePdf() {
     }
 
     showMessage("No PDF loaded. Click 'Open PDF' to begin.");
-  } catch (err) {
-    console.error("Error closing file:", err);
+  } catch (closeError) {
+    console.error("Error closing file:", closeError);
   }
 }
 
-let resizeTimeout;
-const containerObserver = new ResizeObserver(() => {
-  if (!state.currentPdfPath) {
-    return;
-  }
-  clearTimeout(resizeTimeout);
-  resizeTimeout = setTimeout(async () => {
-    if (!state.isRendering) {
-      await performCrossfadeUpdate(
-        state.currentPdfPath,
-        state.currentPageNumber,
-        true,
-      );
-    } else {
-      await updateState({
-        pendingRenderOptions: {
+let resizeDebounceTimer = null;
+if (ui.container) {
+  const containerObserver = new ResizeObserver(() => {
+    if (!state.currentPdfPath) {
+      return;
+    }
+    clearTimeout(resizeDebounceTimer);
+    resizeDebounceTimer = setTimeout(async () => {
+      if (!state.isRendering) {
+        state.isRendering = true;
+        await performCrossfadeUpdate(
+          state.currentPdfPath,
+          state.currentPageNumber,
+          true,
+          false,
+        );
+      } else {
+        state.pendingRenderOptions = {
+          filePath: state.currentPdfPath,
           anchorPage: state.currentPageNumber,
           isInstant: true,
-        },
-      });
-    }
-  }, 150);
-});
-
-if (ui.container) {
+          forceReload: false,
+        };
+      }
+    }, 150);
+  });
   containerObserver.observe(ui.container);
 }
 
-window.addEventListener("keydown", async (event) => {
+window.addEventListener("keydown", async (keyboardEvent) => {
   if (!state.currentPdfPath) {
     return;
   }
 
   if (
-    (event.ctrlKey || event.metaKey) &&
-    (event.key === "=" || event.key === "+" || event.key === "-")
+    (keyboardEvent.ctrlKey || keyboardEvent.metaKey) &&
+    (keyboardEvent.key === "=" ||
+      keyboardEvent.key === "+" ||
+      keyboardEvent.key === "-")
   ) {
-    event.preventDefault();
-    let newZoomMode = state.currentZoomMode;
+    keyboardEvent.preventDefault();
+    let nextZoomMode = state.currentZoomMode;
 
     if (
       state.currentZoomMode === "fit-width" ||
       state.currentZoomMode === "fit-height"
     ) {
-      newZoomMode = "1";
+      nextZoomMode = "1";
     } else {
-      const zoomLevels = [0.25, 0.5, 0.75, 1, 1.25, 1.5, 1.75, 2, 2.5, 3, 4];
-      const currentZoomFloat = parseFloat(state.currentZoomMode);
-      const currentIndex = zoomLevels.findIndex(
-        (z) => Math.abs(z - currentZoomFloat) < 0.01,
+      const zoomLevelScaleSteps = [
+        0.25, 0.5, 0.75, 1, 1.25, 1.5, 1.75, 2, 2.5, 3, 4,
+      ];
+      const currentZoomValue = parseFloat(state.currentZoomMode);
+      const currentStepIndex = zoomLevelScaleSteps.findIndex(
+        (zoomStep) => Math.abs(zoomStep - currentZoomValue) < 0.01,
       );
 
-      if (currentIndex === -1) {
-        newZoomMode = "1";
-      } else {
-        if (event.key === "-" && currentIndex > 0) {
-          newZoomMode = zoomLevels[currentIndex - 1].toString();
-        } else if (
-          (event.key === "=" || event.key === "+") &&
-          currentIndex < zoomLevels.length - 1
-        ) {
-          newZoomMode = zoomLevels[currentIndex + 1].toString();
-        }
+      if (currentStepIndex === -1) {
+        nextZoomMode = "1";
+      } else if (keyboardEvent.key === "-" && currentStepIndex > 0) {
+        nextZoomMode = zoomLevelScaleSteps[currentStepIndex - 1].toString();
+      } else if (
+        (keyboardEvent.key === "=" || keyboardEvent.key === "+") &&
+        currentStepIndex < zoomLevelScaleSteps.length - 1
+      ) {
+        nextZoomMode = zoomLevelScaleSteps[currentStepIndex + 1].toString();
       }
     }
 
-    if (newZoomMode !== state.currentZoomMode) {
-      await updateState({ currentZoomMode: newZoomMode });
+    if (nextZoomMode !== state.currentZoomMode) {
+      state.currentZoomMode = nextZoomMode;
       updateControlsUI();
 
       if (state.isRendering) {
-        await updateState({
-          pendingRenderOptions: {
-            anchorPage: state.currentPageNumber,
-            isInstant: true,
-          },
-        });
+        state.pendingRenderOptions = {
+          filePath: state.currentPdfPath,
+          anchorPage: state.currentPageNumber,
+          isInstant: true,
+          forceReload: false,
+        };
       } else {
-        performCrossfadeUpdate(
+        state.isRendering = true;
+        await performCrossfadeUpdate(
           state.currentPdfPath,
           state.currentPageNumber,
           true,
+          false,
         );
       }
     }
@@ -319,33 +404,37 @@ window.addEventListener("keydown", async (event) => {
 });
 
 if (ui.zoomSelect) {
-  ui.zoomSelect.addEventListener("change", async (event) => {
-    if (!state.currentPdfPath) {
-      event.target.value = state.currentZoomMode;
+  ui.zoomSelect.addEventListener("change", async (changeEvent) => {
+    const targetPdfPath = state.currentPdfPath;
+    if (!targetPdfPath && !state.currentPdfDocument) {
+      changeEvent.target.value = state.currentZoomMode;
       return;
     }
-    await updateState({ currentZoomMode: event.target.value });
+    state.currentZoomMode = changeEvent.target.value;
     updateControlsUI();
     if (state.isRendering) {
-      await updateState({
-        pendingRenderOptions: {
-          anchorPage: state.currentPageNumber,
-          isInstant: true,
-        },
-      });
+      state.pendingRenderOptions = {
+        filePath: targetPdfPath,
+        anchorPage: state.currentPageNumber,
+        isInstant: true,
+        forceReload: false,
+      };
     } else {
-      performCrossfadeUpdate(
-        state.currentPdfPath,
+      state.isRendering = true;
+      await performCrossfadeUpdate(
+        targetPdfPath,
         state.currentPageNumber,
         true,
+        false,
       );
     }
   });
 }
 
 if (ui.pageInput) {
-  ui.pageInput.addEventListener("keydown", (event) => {
-    if (event.key === "Enter") {
+  ui.pageInput.addEventListener("keydown", (keyboardEvent) => {
+    if (keyboardEvent.key === "Enter") {
+      jumpToPage(ui.pageInput.value);
       ui.pageInput.blur();
     }
   });
@@ -391,24 +480,24 @@ window.addEventListener("afterprint", () => {
 if (ui.openFileBtn) {
   ui.openFileBtn.addEventListener("click", async () => {
     try {
-      const filePath = await window.api.selectFile();
-      if (filePath) {
-        await updateState({ currentPdfPath: filePath });
-        updateWindowTitle(filePath);
+      const selectedPath = await window.api.selectFile();
+      if (selectedPath) {
+        state.currentPdfPath = selectedPath;
+        updateWindowTitle(selectedPath);
         ui.openFileBtn.classList.add("hidden");
         showMessage("Loading PDF...");
-        await loadAndRenderPdf(filePath);
+        await loadAndRenderPdf(selectedPath);
       }
-    } catch (err) {
-      console.error("Error opening file:", err);
+    } catch (openError) {
+      console.error("Error opening file:", openError);
     }
   });
 }
 
-window.addEventListener("contextmenu", (event) => {
-  const selection = window.getSelection();
-  if (selection && selection.toString().trim() !== "") {
-    event.preventDefault();
+window.addEventListener("contextmenu", (contextMenuEvent) => {
+  const activeSelection = window.getSelection();
+  if (activeSelection && activeSelection.toString().trim() !== "") {
+    contextMenuEvent.preventDefault();
     window.api.showContextMenu();
   }
 });
@@ -419,33 +508,34 @@ window.addEventListener("contextmenu", (event) => {
  */
 async function init() {
   try {
-    const filePath = await window.api.getFilePath();
-    if (filePath) {
-      await updateState({ currentPdfPath: filePath });
-      updateWindowTitle(filePath);
+    const startupFilePath = await window.api.getFilePath();
+    if (startupFilePath) {
+      state.currentPdfPath = startupFilePath;
+      updateWindowTitle(startupFilePath);
       ui.openFileBtn.classList.add("hidden");
       showMessage("Loading PDF...");
-      await loadAndRenderPdf(filePath);
+      await loadAndRenderPdf(startupFilePath);
     } else {
       showMessage("No PDF loaded. Click 'Open PDF' to begin.");
     }
 
     window.api.onFileUpdated(async (updatedPath) => {
-      await updateState({ currentPdfPath: updatedPath });
       if (state.isRendering) {
-        await updateState({
-          pendingRenderOptions: {
-            anchorPage: null,
-            isInstant: false,
-            forceReload: true,
-          },
-        });
-      } else {
-        await performCrossfadeUpdate(updatedPath, null, false, true);
+        state.pendingRenderOptions = {
+          filePath: updatedPath,
+          anchorPage: null,
+          isInstant: false,
+          forceReload: true,
+        };
+        state.currentPdfPath = updatedPath;
+        return;
       }
+      state.currentPdfPath = updatedPath;
+      state.isRendering = true;
+      await performCrossfadeUpdate(updatedPath, null, false, true);
     });
-  } catch (err) {
-    console.error("Init Error:", err);
+  } catch (initError) {
+    console.error("Init Error:", initError);
     showMessage("Application Init Failed");
   }
 }

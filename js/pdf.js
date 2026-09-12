@@ -1,82 +1,104 @@
 /**
  * @module pdf
- * PDF document loading, rendering lifecycle, and navigation logic.
+ * Document loading, scaling, dynamic canvas and text-layer rendering lifecycle.
  */
 
 import * as pdfjsLib from "../public/pdf.mjs";
 import { state } from "./state.js";
 import { getUIElements, syncCurrentPageFromScroll } from "./ui.js";
 
-pdfjsLib.GlobalWorkerOptions.workerSrc = "../public/pdf.worker.mjs";
+pdfjsLib.GlobalWorkerOptions.workerSrc = new URL(
+  "../public/pdf.worker.mjs",
+  import.meta.url,
+).href;
 
 const activeRenderTasks = new WeakMap();
 const pageRenderGenerations = new WeakMap();
-let activeNavigationId = 0;
+let activeNavigationIdentifier = 0;
 
 /**
- * Loads a PDF document from a given local file path.
- * @param {string} filePath - Absolute path of the target PDF file.
- * @returns {Promise<import("pdfjs-dist").PDFDocumentProxy>} The loaded PDF document proxy.
+ * Loads a PDF document from local disk via the registered protocol.
+ * @param {string} filePath - Target PDF absolute file path.
+ * @returns {Promise<import("pdfjs-dist").PDFDocumentProxy>} PDF document proxy.
  */
 export async function loadPdfDocument(filePath) {
+  const cacheBustingTimestamp = Date.now();
   const loadingTask = pdfjsLib.getDocument(
-    `safe-file://${encodeURIComponent(filePath)}`,
+    `safe-file://${encodeURIComponent(filePath)}?t=${cacheBustingTimestamp}`,
   );
   return await loadingTask.promise;
 }
 
 /**
- * Creates a link service adapter for PDF.js annotation layer navigation.
- * @param {import("pdfjs-dist").PDFDocumentProxy} pdfDocument - The PDF document instance.
- * @returns {object} Link service configuration object.
+ * Creates link navigation adapter for PDF annotation anchors.
+ * @param {import("pdfjs-dist").PDFDocumentProxy} pdfDocument - PDF document instance.
+ * @returns {object} Link service configuration.
  */
 function createLinkService(pdfDocument) {
   return {
-    getDestinationHash: (dest) => dest,
-    getAnchorUrl: (href) => href || "",
-    setDocument: () => {},
-    executeNamedAction: () => {},
-    cachePageRef: () => {},
-    isPageVisible: () => true,
-    isPageCached: () => true,
-    addLinkAttributes: (link, url) => {
-      link.href = url;
+    getDestinationHash(destination) {
+      return destination;
     },
-    goToDestination: (dest) => {
-      if (typeof dest === "string") {
+    getAnchorUrl(href) {
+      return href || "";
+    },
+    setDocument() {},
+    executeNamedAction() {},
+    cachePageRef() {},
+    isPageVisible() {
+      return true;
+    },
+    isPageCached() {
+      return true;
+    },
+    addLinkAttributes(link, targetUrl) {
+      link.href = targetUrl;
+    },
+    goToDestination(destination) {
+      if (!pdfDocument || pdfDocument.destroyed) {
+        return;
+      }
+      if (typeof destination === "string") {
         pdfDocument
-          .getDestination(dest)
-          .then((explicitDest) => {
-            if (Array.isArray(explicitDest) && explicitDest.length > 0) {
-              const pageRef = explicitDest[0];
-              pdfDocument
-                .getPageIndex(pageRef)
-                .then((pageIndex) => {
-                  jumpToPage(pageIndex + 1, explicitDest);
-                })
-                .catch((err) => {
-                  console.error(
-                    "Failed to resolve destination page index:",
-                    err,
-                  );
-                });
+          .getDestination(destination)
+          .then((explicitDestination) => {
+            if (
+              !pdfDocument ||
+              pdfDocument.destroyed ||
+              !Array.isArray(explicitDestination) ||
+              explicitDestination.length === 0
+            ) {
+              return;
+            }
+            const pageReference = explicitDestination[0];
+            pdfDocument
+              .getPageIndex(pageReference)
+              .then((pageIndex) => {
+                if (pdfDocument && !pdfDocument.destroyed) {
+                  jumpToPage(pageIndex + 1, explicitDestination);
+                }
+              })
+              .catch((indexError) => {
+                console.error(
+                  "Failed resolving destination index:",
+                  indexError,
+                );
+              });
+          })
+          .catch((destError) => {
+            console.error("Failed resolving named destination:", destError);
+          });
+      } else if (Array.isArray(destination) && destination.length > 0) {
+        const pageReference = destination[0];
+        pdfDocument
+          .getPageIndex(pageReference)
+          .then((pageIndex) => {
+            if (pdfDocument && !pdfDocument.destroyed) {
+              jumpToPage(pageIndex + 1, destination);
             }
           })
-          .catch((err) => {
-            console.error("Failed to resolve named destination:", err);
-          });
-      } else if (Array.isArray(dest) && dest.length > 0) {
-        const pageRef = dest[0];
-        pdfDocument
-          .getPageIndex(pageRef)
-          .then((pageIndex) => {
-            jumpToPage(pageIndex + 1, dest);
-          })
-          .catch((err) => {
-            console.error(
-              "Failed to resolve explicit destination page index:",
-              err,
-            );
+          .catch((indexError) => {
+            console.error("Failed resolving explicit page index:", indexError);
           });
       }
     },
@@ -84,30 +106,42 @@ function createLinkService(pdfDocument) {
 }
 
 /**
- * Attaches click event listeners for in-document hash links.
- * @param {HTMLElement} annotationLayerDiv - The annotation layer DOM element.
- * @param {import("pdfjs-dist").PDFDocumentProxy} pdfDocument - The PDF document instance.
+ * Attaches in-document anchor click routing to annotation layer links.
+ * @param {HTMLElement} annotationLayerDiv - Annotation layer DOM node.
+ * @param {import("pdfjs-dist").PDFDocumentProxy} pdfDocument - PDF document instance.
  * @returns {void}
  */
 function attachAnnotationClickHandler(annotationLayerDiv, pdfDocument) {
-  annotationLayerDiv.addEventListener("click", (event) => {
-    const linkElement = event.target.closest("a");
+  annotationLayerDiv.addEventListener("click", (mouseEvent) => {
+    const linkElement = mouseEvent.target.closest("a");
     if (!linkElement) {
       return;
     }
 
     const href = linkElement.getAttribute("href");
-    if (!href || !href.startsWith("#")) {
+    if (!href) {
       return;
     }
 
-    event.preventDefault();
+    if (!href.startsWith("#")) {
+      mouseEvent.preventDefault();
+      if (
+        href.startsWith("http://") ||
+        href.startsWith("https://") ||
+        href.startsWith("mailto:")
+      ) {
+        window.open(href, "_blank");
+      }
+      return;
+    }
+
+    mouseEvent.preventDefault();
 
     const pageMatch = href.match(/page=(\d+)/);
     if (pageMatch) {
-      const targetPageNum = parseInt(pageMatch[1], 10);
-      if (!isNaN(targetPageNum)) {
-        jumpToPage(targetPageNum);
+      const targetPage = parseInt(pageMatch[1], 10);
+      if (!isNaN(targetPage)) {
+        jumpToPage(targetPage);
         return;
       }
     }
@@ -121,25 +155,54 @@ function attachAnnotationClickHandler(annotationLayerDiv, pdfDocument) {
         pdfDocument
           .getPageIndex(pageRef)
           .then((pageIndex) => {
-            jumpToPage(pageIndex + 1, parsedDestination);
+            if (pdfDocument && !pdfDocument.destroyed) {
+              jumpToPage(pageIndex + 1, parsedDestination);
+            }
           })
           .catch((err) => {
-            console.error("Failed to resolve page index from link:", err);
+            console.error("Failed resolving page index from link:", err);
           });
       }
     } catch {
-      return;
+      const namedDestination = decodeURIComponent(href.substring(1));
+      if (namedDestination) {
+        pdfDocument
+          .getDestination(namedDestination)
+          .then((resolvedDestination) => {
+            if (
+              pdfDocument &&
+              !pdfDocument.destroyed &&
+              Array.isArray(resolvedDestination) &&
+              resolvedDestination.length > 0
+            ) {
+              const pageRef = resolvedDestination[0];
+              pdfDocument
+                .getPageIndex(pageRef)
+                .then((pageIndex) => {
+                  if (pdfDocument && !pdfDocument.destroyed) {
+                    jumpToPage(pageIndex + 1, resolvedDestination);
+                  }
+                })
+                .catch((err) => {
+                  console.error("Failed resolving destination index:", err);
+                });
+            }
+          })
+          .catch((destError) => {
+            console.error("Failed resolving named destination:", destError);
+          });
+      }
     }
   });
 }
 
 /**
- * Calculates the rendering scale for a page based on current zoom mode.
+ * Computes viewport scale according to active zoom configuration.
  * @param {import("pdfjs-dist").PageViewport} unscaledViewport - Unscaled page viewport.
- * @param {number} containerWidth - Available container width.
- * @param {number} containerHeight - Available container height.
- * @param {string} zoomMode - Selected zoom mode.
- * @returns {number} Calculated scale factor.
+ * @param {number} containerWidth - Container client width.
+ * @param {number} containerHeight - Container client height.
+ * @param {string} zoomMode - Zoom configuration option.
+ * @returns {number} Final scale factor.
  */
 export function calculatePageScale(
   unscaledViewport,
@@ -147,30 +210,30 @@ export function calculatePageScale(
   containerHeight,
   zoomMode,
 ) {
-  let finalScale = 1.0;
+  let computedScale = 1.0;
   if (zoomMode === "fit-width") {
-    finalScale = containerWidth / unscaledViewport.width;
+    computedScale = containerWidth / unscaledViewport.width;
   } else if (zoomMode === "fit-height") {
-    finalScale = (containerHeight - 88) / unscaledViewport.height;
+    computedScale = (containerHeight - 88) / unscaledViewport.height;
   } else {
-    finalScale = parseFloat(zoomMode) * (96 / 72) * (1 / 1.18);
+    computedScale = parseFloat(zoomMode) * (96 / 72) * (1 / 1.18);
   }
-  return Math.min(Math.max(finalScale, 0.1), 5.0);
+  return Math.min(Math.max(computedScale, 0.1), 5.0);
 }
 
 /**
- * Scrolls the document smoothly to a target page and optional destination coordinates.
- * @param {number|string} inputVal - The target page number.
- * @param {Array<any>|null} [destArray=null] - Optional explicit destination array from PDF.js.
+ * Smoothly scrolls the layer to the target page and coordinate anchor.
+ * @param {number|string} inputPage - Target page index or string.
+ * @param {Array<any>|null} [destinationArray=null] - Optional destination specification.
  * @returns {void}
  */
-export function jumpToPage(inputVal, destArray = null) {
-  if (!state.currentPdfPath) {
+export function jumpToPage(inputPage, destinationArray = null) {
+  if (!state.currentFront) {
     return;
   }
   const elements = getUIElements();
 
-  let targetPageNumber = parseInt(inputVal, 10);
+  let targetPageNumber = parseInt(String(inputPage), 10);
   if (isNaN(targetPageNumber)) {
     if (elements.pageInput) {
       elements.pageInput.value = state.currentPageNumber;
@@ -178,7 +241,12 @@ export function jumpToPage(inputVal, destArray = null) {
     return;
   }
 
-  targetPageNumber = Math.max(1, Math.min(targetPageNumber, state.totalPages));
+  const validTotalPages = Math.max(1, state.totalPages);
+  targetPageNumber = Math.max(1, Math.min(targetPageNumber, validTotalPages));
+  state.currentPageNumber = targetPageNumber;
+  if (elements.pageInput) {
+    elements.pageInput.value = targetPageNumber;
+  }
 
   const targetContainer = state.currentFront.querySelector(
     `.page-container[data-page-number="${targetPageNumber}"]`,
@@ -190,58 +258,80 @@ export function jumpToPage(inputVal, destArray = null) {
 
   let targetScrollTop = targetContainer.offsetTop - 16;
 
-  if (destArray && Array.isArray(destArray) && destArray.length >= 4) {
-    const destType = destArray[1];
-    if (destType && destType.name === "XYZ") {
-      const unscaledY = destArray[3];
-      if (typeof unscaledY === "number") {
-        let scaleFactor = 1.0;
-        const scaleStr =
-          targetContainer.dataset.scaleFactor ||
-          targetContainer.style.getPropertyValue("--scale-factor");
-        if (scaleStr) {
-          scaleFactor = parseFloat(scaleStr);
-        }
+  if (
+    destinationArray &&
+    Array.isArray(destinationArray) &&
+    destinationArray.length >= 2
+  ) {
+    const destinationType = destinationArray[1];
+    let unscaledY = null;
+    if (
+      destinationType &&
+      destinationType.name === "XYZ" &&
+      typeof destinationArray[3] === "number"
+    ) {
+      unscaledY = destinationArray[3];
+    } else if (
+      destinationType &&
+      (destinationType.name === "FitH" || destinationType.name === "FitBH") &&
+      typeof destinationArray[2] === "number"
+    ) {
+      unscaledY = destinationArray[2];
+    }
 
-        const pixelHeight =
-          targetContainer.clientHeight ||
-          parseFloat(targetContainer.style.height);
-        const unscaledHeight = pixelHeight / scaleFactor;
-
-        let yOffsetPoint = 0;
-        if (unscaledY <= unscaledHeight) {
-          yOffsetPoint = unscaledHeight - unscaledY;
-        }
-
-        const yOffsetPx = yOffsetPoint * scaleFactor;
-        targetScrollTop = targetContainer.offsetTop + yOffsetPx - 16;
-
-        targetScrollTop = Math.min(
-          targetScrollTop,
-          targetContainer.offsetTop + pixelHeight - 16,
-        );
+    if (typeof unscaledY === "number") {
+      let scaleFactor = 1.0;
+      const scaleString =
+        targetContainer.dataset.scaleFactor ||
+        targetContainer.style.getPropertyValue("--scale-factor");
+      if (scaleString) {
+        scaleFactor = parseFloat(scaleString);
       }
+
+      const pixelHeight =
+        targetContainer.clientHeight ||
+        parseFloat(targetContainer.style.height);
+      const unscaledHeight = pixelHeight / scaleFactor;
+
+      let yOffsetPoint = 0;
+      if (unscaledY <= unscaledHeight) {
+        yOffsetPoint = unscaledHeight - unscaledY;
+      }
+
+      const yOffsetPixel = yOffsetPoint * scaleFactor;
+      targetScrollTop = targetContainer.offsetTop + yOffsetPixel - 16;
+      targetScrollTop = Math.min(
+        targetScrollTop,
+        targetContainer.offsetTop + pixelHeight - 16,
+      );
     }
   }
 
   if (
     targetPageNumber === 1 &&
-    (!destArray ||
+    (!destinationArray ||
       Math.abs(targetScrollTop - targetContainer.offsetTop + 16) < 10)
   ) {
     targetScrollTop = 0;
   }
 
+  if (state.currentFront.clientHeight > 0) {
+    const maximumScrollBoundary = Math.max(
+      0,
+      state.currentFront.scrollHeight - state.currentFront.clientHeight,
+    );
+    targetScrollTop = Math.min(targetScrollTop, maximumScrollBoundary);
+  }
   targetScrollTop = Math.max(0, targetScrollTop);
 
   if (Math.abs(state.currentFront.scrollTop - targetScrollTop) < 2) {
-    if (state.currentPdfDocument) {
+    if (state.currentPdfDocument && !state.currentPdfDocument.destroyed) {
       renderVisiblePages(state.currentFront, state.currentPdfDocument);
     }
     return;
   }
 
-  const currentNavigationId = ++activeNavigationId;
+  const currentNavId = ++activeNavigationIdentifier;
   state.isScrollNavigating = true;
   state.ignoreScrollEvents = true;
   state.currentPageNumber = targetPageNumber;
@@ -249,15 +339,15 @@ export function jumpToPage(inputVal, destArray = null) {
     elements.pageInput.value = targetPageNumber;
   }
 
-  let settled = false;
+  let isSettled = false;
   const onScrollEnd = () => {
-    if (settled || activeNavigationId !== currentNavigationId) {
+    if (isSettled || activeNavigationIdentifier !== currentNavId) {
       return;
     }
-    settled = true;
+    isSettled = true;
     state.isScrollNavigating = false;
     state.ignoreScrollEvents = false;
-    if (state.currentPdfDocument) {
+    if (state.currentPdfDocument && !state.currentPdfDocument.destroyed) {
       renderVisiblePages(state.currentFront, state.currentPdfDocument);
     }
     syncCurrentPageFromScroll(state.currentFront);
@@ -293,9 +383,9 @@ function isContainerWithinRenderBuffer(pageContainer, bufferPixels = 1400) {
 }
 
 /**
- * Renders the canvas, text layer, and annotation layer for a specific page container.
- * @param {HTMLElement} pageContainer - The DOM container element for the page.
- * @param {import("pdfjs-dist").PDFDocumentProxy} pdfDocument - The PDF document instance.
+ * Renders canvas, text, and annotations for a page container.
+ * @param {HTMLElement} pageContainer - Target container DOM node.
+ * @param {import("pdfjs-dist").PDFDocumentProxy} pdfDocument - PDF document instance.
  * @param {boolean} [forceWithinBuffer=false] - Whether to bypass viewport buffer check.
  * @returns {Promise<void>}
  */
@@ -304,6 +394,10 @@ export async function renderPageContainer(
   pdfDocument,
   forceWithinBuffer = false,
 ) {
+  if (!pdfDocument || pdfDocument.destroyed) {
+    return;
+  }
+
   const existingCanvas = pageContainer.querySelector("canvas");
   if (
     (pageContainer.dataset.renderStatus === "rendered" && existingCanvas) ||
@@ -324,15 +418,26 @@ export async function renderPageContainer(
   let page;
   try {
     page = await pdfDocument.getPage(pageNumber);
-  } catch (err) {
+  } catch (pageLoadError) {
     if (pageRenderGenerations.get(pageContainer) === targetGeneration) {
       pageContainer.dataset.renderStatus = "idle";
     }
-    console.error(`Failed to load page ${pageNumber}:`, err);
+    const isDestroyedError =
+      !pdfDocument ||
+      pdfDocument.destroyed ||
+      (pageLoadError &&
+        (pageLoadError.name === "RenderingCancelledException" ||
+          (typeof pageLoadError.message === "string" &&
+            pageLoadError.message.includes("sendWithPromise"))));
+    if (isDestroyedError) {
+      return;
+    }
+    console.error(`Failed loading page ${pageNumber}:`, pageLoadError);
     return;
   }
 
   if (
+    pdfDocument.destroyed ||
     pageRenderGenerations.get(pageContainer) !== targetGeneration ||
     pageContainer.dataset.renderStatus !== "rendering"
   ) {
@@ -366,25 +471,32 @@ export async function renderPageContainer(
   canvas.style.width = "100%";
   canvas.style.height = "100%";
 
-  const context = canvas.getContext("2d");
+  const canvasContext = canvas.getContext("2d");
   const transform =
     outputScale !== 1 ? [outputScale, 0, 0, outputScale, 0, 0] : null;
 
-  const renderContext = { canvasContext: context, transform, viewport };
+  const renderContext = { canvasContext, transform, viewport };
   const renderTask = page.render(renderContext);
 
   activeRenderTasks.set(pageContainer, renderTask);
 
   try {
     await renderTask.promise;
-  } catch (err) {
+  } catch (renderError) {
     if (pageRenderGenerations.get(pageContainer) === targetGeneration) {
       pageContainer.dataset.renderStatus = "idle";
     }
-    if (err && err.name === "RenderingCancelledException") {
+    const isDestroyedError =
+      !pdfDocument ||
+      pdfDocument.destroyed ||
+      (renderError &&
+        (renderError.name === "RenderingCancelledException" ||
+          (typeof renderError.message === "string" &&
+            renderError.message.includes("sendWithPromise"))));
+    if (isDestroyedError) {
       return;
     }
-    console.error(`Page ${pageNumber} canvas render error:`, err);
+    console.error(`Page ${pageNumber} canvas render error:`, renderError);
     return;
   } finally {
     if (activeRenderTasks.get(pageContainer) === renderTask) {
@@ -393,6 +505,7 @@ export async function renderPageContainer(
   }
 
   if (
+    pdfDocument.destroyed ||
     pageRenderGenerations.get(pageContainer) !== targetGeneration ||
     pageContainer.dataset.renderStatus !== "rendering"
   ) {
@@ -404,14 +517,22 @@ export async function renderPageContainer(
     if (!textLayerDiv) {
       textLayerDiv = document.createElement("div");
       textLayerDiv.className = "textLayer";
-      textLayerDiv.style.setProperty("--scale-factor", viewport.scale);
+      textLayerDiv.style.setProperty("--scale-factor", String(viewport.scale));
       pageContainer.appendChild(textLayerDiv);
     } else {
       textLayerDiv.innerHTML = "";
     }
 
+    if (
+      pdfDocument.destroyed ||
+      pageRenderGenerations.get(pageContainer) !== targetGeneration
+    ) {
+      return;
+    }
+
     const textContent = await page.getTextContent();
     if (
+      pdfDocument.destroyed ||
       pageRenderGenerations.get(pageContainer) !== targetGeneration ||
       pageContainer.dataset.renderStatus !== "rendering"
     ) {
@@ -421,11 +542,12 @@ export async function renderPageContainer(
     const textLayer = new pdfjsLib.TextLayer({
       textContentSource: textContent,
       container: textLayerDiv,
-      viewport: viewport,
+      viewport,
     });
     await textLayer.render();
 
     if (
+      pdfDocument.destroyed ||
       pageRenderGenerations.get(pageContainer) !== targetGeneration ||
       pageContainer.dataset.renderStatus !== "rendering"
     ) {
@@ -436,14 +558,25 @@ export async function renderPageContainer(
     if (!annotationLayerDiv) {
       annotationLayerDiv = document.createElement("div");
       annotationLayerDiv.className = "annotationLayer";
-      annotationLayerDiv.style.setProperty("--scale-factor", viewport.scale);
+      annotationLayerDiv.style.setProperty(
+        "--scale-factor",
+        String(viewport.scale),
+      );
       pageContainer.appendChild(annotationLayerDiv);
     } else {
       annotationLayerDiv.innerHTML = "";
     }
 
+    if (
+      pdfDocument.destroyed ||
+      pageRenderGenerations.get(pageContainer) !== targetGeneration
+    ) {
+      return;
+    }
+
     const annotations = await page.getAnnotations();
     if (
+      pdfDocument.destroyed ||
       pageRenderGenerations.get(pageContainer) !== targetGeneration ||
       pageContainer.dataset.renderStatus !== "rendering"
     ) {
@@ -455,22 +588,23 @@ export async function renderPageContainer(
       accessibilityManager: null,
       annotationCanvasMap: null,
       annotationEditorUIManager: null,
-      page: page,
-      viewport: viewport,
+      page,
+      viewport,
       structTreeLayer: null,
     });
 
     await annotationLayer.render({
-      viewport: viewport,
+      viewport,
       div: annotationLayerDiv,
-      annotations: annotations,
-      page: page,
+      annotations,
+      page,
       linkService: createLinkService(pdfDocument),
       downloadManager: null,
       renderForms: false,
     });
 
     if (
+      pdfDocument.destroyed ||
       pageRenderGenerations.get(pageContainer) !== targetGeneration ||
       pageContainer.dataset.renderStatus !== "rendering"
     ) {
@@ -479,17 +613,27 @@ export async function renderPageContainer(
 
     attachAnnotationClickHandler(annotationLayerDiv, pdfDocument);
     pageContainer.dataset.renderStatus = "rendered";
-  } catch (err) {
+  } catch (layerError) {
     if (pageRenderGenerations.get(pageContainer) === targetGeneration) {
       pageContainer.dataset.renderStatus = "idle";
     }
-    console.error(`Page ${pageNumber} layer render error:`, err);
+    const isDestroyedError =
+      !pdfDocument ||
+      pdfDocument.destroyed ||
+      (layerError &&
+        (layerError.name === "RenderingCancelledException" ||
+          (typeof layerError.message === "string" &&
+            layerError.message.includes("sendWithPromise"))));
+    if (isDestroyedError) {
+      return;
+    }
+    console.error(`Page ${pageNumber} layer render error:`, layerError);
   }
 }
 
 /**
- * Unmounts canvas, text layer, and annotation layer from a page container to reclaim memory.
- * @param {HTMLElement} pageContainer - The DOM container element to unrender.
+ * Clears canvas and overlay layers to reclaim system memory.
+ * @param {HTMLElement} pageContainer - Page container DOM node.
  * @returns {void}
  */
 export function unrenderPageContainer(pageContainer) {
@@ -500,8 +644,8 @@ export function unrenderPageContainer(pageContainer) {
   if (currentTask) {
     try {
       currentTask.cancel();
-    } catch (err) {
-      console.error("Error cancelling render task:", err);
+    } catch (cancelError) {
+      console.error("Error cancelling render task:", cancelError);
     }
     activeRenderTasks.delete(pageContainer);
   }
@@ -511,8 +655,8 @@ export function unrenderPageContainer(pageContainer) {
 }
 
 /**
- * Cancels all active render tasks and clears page contents in a layer element.
- * @param {HTMLElement} layerElement - The container layer element.
+ * Cancels all pending tasks and clears container children.
+ * @param {HTMLElement} layerElement - Container layer element.
  * @returns {void}
  */
 export function cancelAllRenderTasks(layerElement) {
@@ -524,19 +668,19 @@ export function cancelAllRenderTasks(layerElement) {
 
 /**
  * Renders all page containers that are currently within the visible viewport buffer.
- * @param {HTMLElement} layerElement - The container layer element.
- * @param {import("pdfjs-dist").PDFDocumentProxy} pdfDocument - The PDF document instance.
- * @param {number} [bufferPx=800] - Additional pixel buffer above and below viewport.
+ * @param {HTMLElement} layerElement - Container layer element.
+ * @param {import("pdfjs-dist").PDFDocumentProxy} pdfDocument - PDF document instance.
+ * @param {number} [bufferPixels=800] - Pixel buffer above and below viewport.
  * @returns {Promise<void[]>}
  */
 export async function renderVisiblePages(
   layerElement,
   pdfDocument,
-  bufferPx = 800,
+  bufferPixels = 800,
 ) {
-  const visibleTop = layerElement.scrollTop - bufferPx;
+  const visibleTop = layerElement.scrollTop - bufferPixels;
   const visibleBottom =
-    layerElement.scrollTop + layerElement.clientHeight + bufferPx;
+    layerElement.scrollTop + layerElement.clientHeight + bufferPixels;
 
   const containers = layerElement.querySelectorAll(".page-container");
   const renderPromises = [];
@@ -554,11 +698,11 @@ export async function renderVisiblePages(
 }
 
 /**
- * Generates lightweight page container skeletons for the entire document and attaches them to the layer.
- * @param {import("pdfjs-dist").PDFDocumentProxy} pdfDocument - The PDF document instance.
- * @param {HTMLElement} targetLayer - The DOM layer receiving page skeletons.
- * @param {number|null} [pageToAnchor=null] - Optional page number to anchor scroll position.
- * @returns {Promise<HTMLElement|null>} The anchored container element if requested.
+ * Generates page containers skeletons for document.
+ * @param {import("pdfjs-dist").PDFDocumentProxy} pdfDocument - PDF document instance.
+ * @param {HTMLElement} targetLayer - Destination DOM layer.
+ * @param {number|null} [pageToAnchor=null] - Page number to maintain in view.
+ * @returns {Promise<HTMLElement|null>} Anchored container if found.
  */
 export async function renderDocumentToLayer(
   pdfDocument,
@@ -567,6 +711,13 @@ export async function renderDocumentToLayer(
 ) {
   cancelAllRenderTasks(targetLayer);
   targetLayer.innerHTML = "";
+
+  const clampedAnchorPage =
+    typeof pageToAnchor === "number" &&
+    !isNaN(pageToAnchor) &&
+    pdfDocument.numPages > 0
+      ? Math.max(1, Math.min(pageToAnchor, pdfDocument.numPages))
+      : null;
 
   const targetWidth = targetLayer.clientWidth * 0.9;
   let targetAnchorCanvas = null;
@@ -579,9 +730,9 @@ export async function renderDocumentToLayer(
 
   const fragment = document.createDocumentFragment();
 
-  for (let index = 0; index < pages.length; index++) {
+  for (let index = 0; index < pages.length; index += 1) {
     const page = pages[index];
-    const pageNum = index + 1;
+    const pageNumber = index + 1;
     const unscaledViewport = page.getViewport({ scale: 1.0 });
 
     const finalScale = calculatePageScale(
@@ -594,14 +745,14 @@ export async function renderDocumentToLayer(
     const viewport = page.getViewport({ scale: finalScale });
     const pageContainer = document.createElement("div");
     pageContainer.className = "page-container";
-    pageContainer.dataset.pageNumber = String(pageNum);
+    pageContainer.dataset.pageNumber = String(pageNumber);
     pageContainer.dataset.scaleFactor = String(viewport.scale);
     pageContainer.dataset.renderStatus = "idle";
     pageContainer.style.setProperty("--scale-factor", String(viewport.scale));
-    pageContainer.style.width = Math.floor(viewport.width) + "px";
-    pageContainer.style.height = Math.floor(viewport.height) + "px";
+    pageContainer.style.width = `${Math.floor(viewport.width)}px`;
+    pageContainer.style.height = `${Math.floor(viewport.height)}px`;
 
-    if (pageNum === pageToAnchor) {
+    if (pageNumber === clampedAnchorPage) {
       targetAnchorCanvas = pageContainer;
     }
 
@@ -614,8 +765,8 @@ export async function renderDocumentToLayer(
 
 /**
  * Renders all pages across the document for printing.
- * @param {HTMLElement} layerElement - The container layer element.
- * @param {import("pdfjs-dist").PDFDocumentProxy} pdfDocument - The PDF document instance.
+ * @param {HTMLElement} layerElement - Container layer element.
+ * @param {import("pdfjs-dist").PDFDocumentProxy} pdfDocument - PDF document instance.
  * @returns {Promise<void>}
  */
 export async function renderAllPagesForPrint(layerElement, pdfDocument) {

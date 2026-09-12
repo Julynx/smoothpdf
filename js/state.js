@@ -20,25 +20,30 @@ export const state = {
   ignoreScrollEvents: false,
   currentFront: document.getElementById("layer-1"),
   currentBack: document.getElementById("layer-2"),
+  renderPassIdentifier: 0,
 };
 
 /**
- * Updates application state and cleans up resources if necessary.
- * @param {Partial<typeof state>} updates - State properties to update.
+ * Destroys a superseded PDF document proxy after detachment.
+ * @param {import("pdfjs-dist").PDFDocumentProxy|null} documentProxy - PDF document proxy to destroy.
+ * @returns {Promise<void>}
+ */
+export async function destroyPdfDocument(documentProxy) {
+  if (!documentProxy) {
+    return;
+  }
+  try {
+    await documentProxy.destroy();
+  } catch (destroyError) {
+    console.error("Error destroying superseded PDF document:", destroyError);
+  }
+}
+
+/**
+ * Updates application state properties.
+ * @param {Partial<typeof state>} updates - Properties to update.
  * @returns {Promise<void>}
  */
 export async function updateState(updates) {
-  if (
-    updates.currentPdfDocument !== undefined &&
-    state.currentPdfDocument !== null &&
-    state.currentPdfDocument !== updates.currentPdfDocument
-  ) {
-    try {
-      await state.currentPdfDocument.destroy();
-    } catch (err) {
-      console.error("Error destroying previous PDF document:", err);
-    }
-  }
-
   Object.assign(state, updates);
 }
