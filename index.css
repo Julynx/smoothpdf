@@ -424,7 +424,7 @@ html {
 }
 
 .page-container {
-  background-color: var(--white);
+  /* background-color: var(--white); */
   border-radius: 6px;
   box-shadow:
     0 12px 24px -8px var(--black),
@@ -450,7 +450,7 @@ html {
 }
 
 canvas {
-  background-color: var(--white);
+  /* background-color: var(--white); */
   border-radius: inherit;
   display: block;
 }
